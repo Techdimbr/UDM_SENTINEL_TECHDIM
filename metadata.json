@@ -1,0 +1,8 @@
+{
+  "name": "UDM Pro Security Auditor",
+  "description": "Uma ferramenta de auxílio para auditoria de segurança e hardening de dispositivos Ubiquiti UDM Pro, com gerador de comandos e assistente IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
