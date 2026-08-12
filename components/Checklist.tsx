@@ -3,12 +3,26 @@ import { INITIAL_CHECKLIST } from '../constants';
 import { SecurityCheckItem } from '../types';
 
 const Checklist: React.FC = () => {
-  const [items, setItems] = useState<SecurityCheckItem[]>(INITIAL_CHECKLIST);
+  const [items, setItems] = useState<SecurityCheckItem[]>(() => {
+    const saved = localStorage.getItem('udm_security_checklist');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Erro ao carregar checklist do localStorage", e);
+      }
+    }
+    return INITIAL_CHECKLIST;
+  });
 
   const toggleCheck = (id: string) => {
-    setItems(prev => prev.map(item => 
-      item.id === id ? { ...item, checked: !item.checked } : item
-    ));
+    setItems(prev => {
+      const updated = prev.map(item =>
+        item.id === id ? { ...item, checked: !item.checked } : item
+      );
+      localStorage.setItem('udm_security_checklist', JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const progress = Math.round((items.filter(i => i.checked).length / items.length) * 100);

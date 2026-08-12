@@ -5,10 +5,42 @@ import {
   RefreshCw, Key, Globe, Network, Lock, Sliders, Zap, Bot, ArrowUpRight, ArrowDownRight, Eye, EyeOff
 } from 'lucide-react';
 
-const UdmLiveIntegration: React.FC = () => {
+interface UdmLiveIntegrationProps {
+  overview: UDMSystemOverview | null;
+  setOverview: React.Dispatch<React.SetStateAction<UDMSystemOverview | null>>;
+  devices: UDMDevice[];
+  setDevices: React.Dispatch<React.SetStateAction<UDMDevice[]>>;
+  firewallRules: UDMFirewallRule[];
+  setFirewallRules: React.Dispatch<React.SetStateAction<UDMFirewallRule[]>>;
+  clients: UDMClient[];
+  setClients: React.Dispatch<React.SetStateAction<UDMClient[]>>;
+  threats: UDMThreatEvent[];
+  setThreats: React.Dispatch<React.SetStateAction<UDMThreatEvent[]>>;
+  auditReport: string | null;
+  setAuditReport: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+const UdmLiveIntegration: React.FC<UdmLiveIntegrationProps> = ({
+  overview,
+  setOverview,
+  devices,
+  setDevices,
+  firewallRules,
+  setFirewallRules,
+  clients,
+  setClients,
+  threats,
+  setThreats,
+  auditReport,
+  setAuditReport,
+}) => {
   // Configuration State
-  const [host, setHost] = useState<string>('https://192.168.1.1');
-  const [apiKey, setApiKey] = useState<string>('AudgaXGx6QNswXhxILrOatV_L-n5hBF1');
+  const [host, setHost] = useState<string>(() => {
+    return localStorage.getItem('udm_host') || 'https://192.168.1.1';
+  });
+  const [apiKey, setApiKey] = useState<string>(() => {
+    return localStorage.getItem('udm_api_key') || 'AudgaXGx6QNswXhxILrOatV_L-n5hBF1';
+  });
   const [showApiKey, setShowApiKey] = useState<boolean>(false);
 
   // Connection & Data States
@@ -23,16 +55,8 @@ const UdmLiveIntegration: React.FC = () => {
   const [activeSection, setActiveSection] = useState<'overview' | 'devices' | 'firewall' | 'clients' | 'threats' | 'audit'>('overview');
   const [loadingData, setLoadingData] = useState<boolean>(false);
 
-  // Data
-  const [overview, setOverview] = useState<UDMSystemOverview | null>(null);
-  const [devices, setDevices] = useState<UDMDevice[]>([]);
-  const [firewallRules, setFirewallRules] = useState<UDMFirewallRule[]>([]);
-  const [clients, setClients] = useState<UDMClient[]>([]);
-  const [threats, setThreats] = useState<UDMThreatEvent[]>([]);
-
   // AI Audit State
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
-  const [auditReport, setAuditReport] = useState<string | null>(null);
 
   // Initial Load
   useEffect(() => {
@@ -49,6 +73,10 @@ const UdmLiveIntegration: React.FC = () => {
     setTestingConnection(true);
     setLoadingData(true);
     try {
+      // Save credentials on successful or tested connection
+      localStorage.setItem('udm_host', host);
+      localStorage.setItem('udm_api_key', apiKey);
+
       // 1. Test Connection
       const testRes = await fetch('/api/udm/test', {
         method: 'POST',

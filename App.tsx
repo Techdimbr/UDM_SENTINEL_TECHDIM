@@ -6,11 +6,19 @@ import UdmLiveIntegration from './components/UdmLiveIntegration';
 import ApiCapabilitiesCatalog from './components/ApiCapabilitiesCatalog';
 import WhitelabelReportGenerator from './components/WhitelabelReportGenerator';
 import WifiEventOptimizer from './components/WifiEventOptimizer';
-import { Tab } from './types';
+import { Tab, UDMSystemOverview, UDMDevice, UDMFirewallRule, UDMClient, UDMThreatEvent } from './types';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>(Tab.LIVE_UDM);
   const [agreed, setAgreed] = useState(false);
+
+  // Shared UDM data states to link UdmLiveIntegration and WhitelabelReportGenerator
+  const [overview, setOverview] = useState<UDMSystemOverview | null>(null);
+  const [devices, setDevices] = useState<UDMDevice[]>([]);
+  const [firewallRules, setFirewallRules] = useState<UDMFirewallRule[]>([]);
+  const [clients, setClients] = useState<UDMClient[]>([]);
+  const [threats, setThreats] = useState<UDMThreatEvent[]>([]);
+  const [auditReport, setAuditReport] = useState<string | null>(null);
 
   if (!agreed) {
     return (
@@ -103,9 +111,32 @@ const App: React.FC = () => {
         </div>
 
         <div className="transition-all duration-300">
-          {activeTab === Tab.LIVE_UDM && <UdmLiveIntegration />}
+          {activeTab === Tab.LIVE_UDM && (
+            <UdmLiveIntegration
+              overview={overview}
+              setOverview={setOverview}
+              devices={devices}
+              setDevices={setDevices}
+              firewallRules={firewallRules}
+              setFirewallRules={setFirewallRules}
+              clients={clients}
+              setClients={setClients}
+              threats={threats}
+              setThreats={setThreats}
+              auditReport={auditReport}
+              setAuditReport={setAuditReport}
+            />
+          )}
           {activeTab === Tab.EVENT_WIFI && <WifiEventOptimizer />}
-          {activeTab === Tab.REPORTS && <WhitelabelReportGenerator />}
+          {activeTab === Tab.REPORTS && (
+            <WhitelabelReportGenerator
+              overview={overview}
+              devices={devices}
+              firewallRules={firewallRules}
+              threats={threats}
+              aiAuditText={auditReport || ''}
+            />
+          )}
           {activeTab === Tab.CATALOG && <ApiCapabilitiesCatalog />}
           {activeTab === Tab.GENERATOR && <CommandGenerator />}
           {activeTab === Tab.ADVISOR && <SecurityAdvisor />}
