@@ -49,6 +49,41 @@
       ::-webkit-scrollbar-thumb:hover {
         background: #64748b;
       }
+
+      /* Print styles to ensure professional whitelabel reports PDF generation */
+      @media print {
+        body {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+        }
+        header, footer, nav, button, .no-print, input, select, textarea, [role="tablist"] {
+          display: none !important;
+        }
+        /* Hide all sections except the active tab report container */
+        #root > div > header,
+        #root > div > main > div:first-of-type,
+        #root > div > footer {
+          display: none !important;
+        }
+        #root > div {
+          min-height: auto !important;
+          background: none !important;
+          color: #000000 !important;
+        }
+        #root > div > main {
+          padding: 0 !important;
+          max-width: 100% !important;
+          margin: 0 !important;
+        }
+        #printable-report {
+          box-shadow: none !important;
+          border: none !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          color: #000000 !important;
+          background-color: #ffffff !important;
+        }
+      }
     </style>
   <script type="importmap">
 {
