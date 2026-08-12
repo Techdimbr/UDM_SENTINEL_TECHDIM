@@ -6,6 +6,7 @@ export enum Tab {
   GENERATOR = 'GENERATOR',
   ADVISOR = 'ADVISOR',
   CHECKLIST = 'CHECKLIST',
+  NETWORK_ANALYSIS = 'NETWORK_ANALYSIS',
 }
 
 export interface WhitelabelConfig {

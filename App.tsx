@@ -6,6 +6,7 @@ import UdmLiveIntegration from './components/UdmLiveIntegration';
 import ApiCapabilitiesCatalog from './components/ApiCapabilitiesCatalog';
 import WhitelabelReportGenerator from './components/WhitelabelReportGenerator';
 import WifiEventOptimizer from './components/WifiEventOptimizer';
+import NetworkAnalyzer from './components/NetworkAnalyzer';
 import { Tab, UDMSystemOverview, UDMDevice, UDMFirewallRule, UDMClient, UDMThreatEvent } from './types';
 
 const App: React.FC = () => {
@@ -64,6 +65,7 @@ const App: React.FC = () => {
           <nav className="flex flex-wrap gap-1">
             {[
               { id: Tab.LIVE_UDM, label: 'Painel API UDM' },
+              { id: Tab.NETWORK_ANALYSIS, label: 'Análise de Rede & Invasão' },
               { id: Tab.EVENT_WIFI, label: 'Wi-Fi Eventos 10k+' },
               { id: Tab.REPORTS, label: 'Relatórios Whitelabel' },
               { id: Tab.CATALOG, label: '50 Recursos API' },
@@ -92,6 +94,7 @@ const App: React.FC = () => {
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white mb-2">
             {activeTab === Tab.LIVE_UDM && 'Integração UniFi OS Network API'}
+            {activeTab === Tab.NETWORK_ANALYSIS && 'Análise Avançada de Rede, DNS, Exfiltração & Wi-Fi'}
             {activeTab === Tab.EVENT_WIFI && 'Otimização Wi-Fi para Eventos de Alta Densidade (10.000+ Usuários)'}
             {activeTab === Tab.REPORTS && 'Gerador de Relatórios Executivos Whitelabel'}
             {activeTab === Tab.CATALOG && '50 Proteções & Serviços Complementares via API'}
@@ -101,6 +104,7 @@ const App: React.FC = () => {
           </h2>
           <p className="text-slate-400">
             {activeTab === Tab.LIVE_UDM && 'Monitoramento ao vivo de firewall, equipamentos, clientes e ameaças do seu UDM Pro via API chave.'}
+            {activeTab === Tab.NETWORK_ANALYSIS && 'Análise proativa de desvios de DNS, exfiltração contínua de gigabytes, sequestro ARP e ataques contra o espectro Wi-Fi (Deauth).'}
             {activeTab === Tab.EVENT_WIFI && 'Configuração e simulação de parâmetros de RF e WLAN para alta densidade, mitigando interferência de 500+ SSIDs vizinhas.'}
             {activeTab === Tab.REPORTS && 'Gere relatórios executivos personalizados com a logo, nome da sua empresa e pareceres técnicos em PDF, CSV e JSON.'}
             {activeTab === Tab.CATALOG && 'Explore 50 capacidades exclusivas que uma aplicação customizada com acesso à API do UniFi OS pode realizar.'}
@@ -140,6 +144,7 @@ const App: React.FC = () => {
           {activeTab === Tab.CATALOG && <ApiCapabilitiesCatalog />}
           {activeTab === Tab.GENERATOR && <CommandGenerator />}
           {activeTab === Tab.ADVISOR && <SecurityAdvisor />}
+          {activeTab === Tab.NETWORK_ANALYSIS && <NetworkAnalyzer />}
           {activeTab === Tab.CHECKLIST && <Checklist />}
         </div>
       </main>

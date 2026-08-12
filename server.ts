@@ -470,6 +470,46 @@ Por favor, elabore um **Relatório Executivo e Técnico de Auditoria** estrutura
     }
   });
 
+  // 10. Server-side endpoint to analyze traffic anomalies and intrusions
+  app.post("/api/udm/analyze-traffic", async (req, res) => {
+    try {
+      const anomalies = req.body?.anomalies || [];
+      const aiPrompt = `
+Você é um analista de segurança Blue Team sênior especializado em auditoria de tráfego, DNS, segurança de redes sem fio (Wi-Fi) e prevenção de vazamento de dados (DLP).
+Analise a seguinte lista de anomalias detectadas recentemente na rede e Wi-Fi do console UDM Pro:
+
+Anomalias Detectadas:
+${JSON.stringify(anomalies, null, 2)}
+
+Por favor, elabore um **Relatório Técnico de Resposta a Incidentes (Blue Team Guia)** em Português do Brasil contendo:
+1. **Resumo das Ameaças Críticas**: Classifique a gravidade das anomalias mostradas.
+2. **Análise de Exfiltração & DNS**: Explique o risco associado a desvios de DNS (como DNS Tunneling ou Hijacking) e o upload contínuo de gigabytes na rede.
+3. **Análise de Segurança Sem Fio**: Explique os riscos de ataques de desautenticação (Deauth) e como evitar a clonagem de rede (SSID Evil Twin).
+4. **Plano de Resposta Imediato**: Liste comandos ou políticas específicas do UniFi OS (como regras de firewall, PMF, isolamento de VLAN, DHCP Snooping e IDS/IPS) para conter e neutralizar cada ameaça.
+      `;
+
+      const ai = getGeminiClient();
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: aiPrompt,
+        config: {
+          temperature: 0.3,
+        },
+      });
+
+      return res.json({
+        success: true,
+        report: response.text || "Análise concluída sem retorno legível.",
+      });
+    } catch (error: any) {
+      console.error("Analyze traffic error:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Falha ao gerar o diagnóstico de tráfego por IA: " + error.message,
+      });
+    }
+  });
+
   // 8. Server-side Gemini Chat endpoint for Security Advisor
   app.post("/api/gemini/advisor", async (req, res) => {
     try {
