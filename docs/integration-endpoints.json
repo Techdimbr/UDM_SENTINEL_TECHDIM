@@ -1,0 +1,440 @@
+[
+ {
+  "method": "GET",
+  "path": "/v1/countries",
+  "summary": "List Countries",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/dpi/applications",
+  "summary": "List DPI Applications",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/dpi/categories",
+  "summary": "List DPI Application Categories",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/info",
+  "summary": "Get Application Info",
+  "tag": "Application Info"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/pending-devices",
+  "summary": "List Devices Pending Adoption",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites",
+  "summary": "List Local Sites",
+  "tag": "Sites"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/acl-rules",
+  "summary": "List ACL Rules",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/acl-rules",
+  "summary": "Create ACL Rule",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/acl-rules/ordering",
+  "summary": "Get User-Defined ACL Rule Ordering",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/acl-rules/ordering",
+  "summary": "Reorder User-Defined ACL Rules",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/acl-rules/{aclRuleId}",
+  "summary": "Delete ACL Rule",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/acl-rules/{aclRuleId}",
+  "summary": "Get ACL Rule",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/acl-rules/{aclRuleId}",
+  "summary": "Update ACL Rule",
+  "tag": "Access Control (ACL Rules)"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/clients",
+  "summary": "List Connected Clients",
+  "tag": "Clients"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/clients/{clientId}",
+  "summary": "Get Connected Client Details",
+  "tag": "Clients"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/clients/{clientId}/actions",
+  "summary": "Execute Client Action",
+  "tag": "Clients"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/device-tags",
+  "summary": "List Device Tags",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/devices",
+  "summary": "List Adopted Devices",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/devices",
+  "summary": "Adopt Devices",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/devices/{deviceId}",
+  "summary": "Remove (Unadopt) Device",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/devices/{deviceId}",
+  "summary": "Get Adopted Device Details",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/devices/{deviceId}/actions",
+  "summary": "Execute Adopted Device Action",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions",
+  "summary": "Execute Port Action",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/devices/{deviceId}/statistics/latest",
+  "summary": "Get Latest Adopted Device Statistics",
+  "tag": "UniFi Devices"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/dns/policies",
+  "summary": "List DNS Policies",
+  "tag": "DNS Policies"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/dns/policies",
+  "summary": "Create DNS Policy",
+  "tag": "DNS Policies"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/dns/policies/{dnsPolicyId}",
+  "summary": "Delete DNS Policy",
+  "tag": "DNS Policies"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/dns/policies/{dnsPolicyId}",
+  "summary": "Get DNS Policy",
+  "tag": "DNS Policies"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/dns/policies/{dnsPolicyId}",
+  "summary": "Update DNS Policy",
+  "tag": "DNS Policies"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/firewall/policies",
+  "summary": "List Firewall Policies",
+  "tag": "Firewall"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/firewall/policies",
+  "summary": "Create Firewall Policy",
+  "tag": "Firewall"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/firewall/policies/ordering",
+  "summary": "Get User-Defined Firewall Policy Ordering",
+  "tag": "Firewall"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/firewall/policies/ordering",
+  "summary": "Reorder User-Defined Firewall Policies",
+  "tag": "Firewall"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}",
+  "summary": "Delete Firewall Policy",
+  "tag": "Firewall"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}",
+  "summary": "Get Firewall Policy",
+  "tag": "Firewall"
+ },
+ {
+  "method": "PATCH",
+  "path": "/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}",
+  "summary": "Patch Firewall Policy",
+  "tag": "Firewall"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/firewall/policies/{firewallPolicyId}",
+  "summary": "Update Firewall Policy",
+  "tag": "Firewall"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/firewall/zones",
+  "summary": "List Firewall Zones",
+  "tag": "Firewall"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/firewall/zones",
+  "summary": "Create Custom Firewall Zone",
+  "tag": "Firewall"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/firewall/zones/{firewallZoneId}",
+  "summary": "Delete Custom Firewall Zone",
+  "tag": "Firewall"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/firewall/zones/{firewallZoneId}",
+  "summary": "Get Firewall Zone",
+  "tag": "Firewall"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/firewall/zones/{firewallZoneId}",
+  "summary": "Update Firewall Zone",
+  "tag": "Firewall"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/hotspot/vouchers",
+  "summary": "Delete Vouchers",
+  "tag": "Hotspot"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/hotspot/vouchers",
+  "summary": "List Vouchers",
+  "tag": "Hotspot"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/hotspot/vouchers",
+  "summary": "Generate Vouchers",
+  "tag": "Hotspot"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/hotspot/vouchers/{voucherId}",
+  "summary": "Delete Voucher",
+  "tag": "Hotspot"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/hotspot/vouchers/{voucherId}",
+  "summary": "Get Voucher Details",
+  "tag": "Hotspot"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/networks",
+  "summary": "List Networks",
+  "tag": "Networks"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/networks",
+  "summary": "Create Network",
+  "tag": "Networks"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/networks/{networkId}",
+  "summary": "Delete Network",
+  "tag": "Networks"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/networks/{networkId}",
+  "summary": "Get Network Details",
+  "tag": "Networks"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/networks/{networkId}",
+  "summary": "Update Network",
+  "tag": "Networks"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/networks/{networkId}/references",
+  "summary": "Get Network References",
+  "tag": "Networks"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/radius/profiles",
+  "summary": "List Radius Profiles",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/lags",
+  "summary": "List LAGs",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/lags/{lagId}",
+  "summary": "Get LAG Details",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/mc-lag-domains",
+  "summary": "List MC-LAG Domains",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/mc-lag-domains/{mcLagDomainId}",
+  "summary": "Get MC-LAG Domain",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/switch-stacks",
+  "summary": "List Switch Stacks",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/switching/switch-stacks/{switchStackId}",
+  "summary": "Get Switch Stack",
+  "tag": "Switching"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/traffic-matching-lists",
+  "summary": "List Traffic Matching Lists",
+  "tag": "Traffic Matching Lists"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/traffic-matching-lists",
+  "summary": "Create Traffic Matching List",
+  "tag": "Traffic Matching Lists"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId}",
+  "summary": "Delete Traffic Matching List",
+  "tag": "Traffic Matching Lists"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId}",
+  "summary": "Get Traffic Matching List",
+  "tag": "Traffic Matching Lists"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/traffic-matching-lists/{trafficMatchingListId}",
+  "summary": "Update Traffic Matching List",
+  "tag": "Traffic Matching Lists"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/vpn/servers",
+  "summary": "List VPN Servers",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/vpn/site-to-site-tunnels",
+  "summary": "List Site-To-Site VPN Tunnels",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/wans",
+  "summary": "List WAN Interfaces",
+  "tag": "Supporting Resources"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/wifi/broadcasts",
+  "summary": "List Wifi Broadcasts",
+  "tag": "WiFi Broadcasts"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/sites/{siteId}/wifi/broadcasts",
+  "summary": "Create Wifi Broadcast",
+  "tag": "WiFi Broadcasts"
+ },
+ {
+  "method": "DELETE",
+  "path": "/v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}",
+  "summary": "Delete Wifi Broadcast",
+  "tag": "WiFi Broadcasts"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}",
+  "summary": "Get Wifi Broadcast Details",
+  "tag": "WiFi Broadcasts"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/sites/{siteId}/wifi/broadcasts/{wifiBroadcastId}",
+  "summary": "Update Wifi Broadcast",
+  "tag": "WiFi Broadcasts"
+ }
+]
