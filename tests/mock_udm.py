@@ -18,10 +18,24 @@ mock = FastAPI()
 
 ZONES = {n: str(uuid.uuid4()) for n in ["Internal", "External", "Guest", "VPN", "Hotspot", "DMZ"]}
 NETS = {
-    "Default": {"id": str(uuid.uuid4()), "vlanId": 1, "default": True, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal"},
-    "IoT": {"id": str(uuid.uuid4()), "vlanId": 20, "default": False, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal"},
-    "Guest": {"id": str(uuid.uuid4()), "vlanId": 30, "default": False, "isolationEnabled": True, "dhcpGuarding": {"enabled": True}, "zone": "Guest"},
+    "Default": {"id": str(uuid.uuid4()), "vlanId": 1, "default": True, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal", "dns": [], "cf": "NONE"},
+    # Corp reproduz o problema real: DNS apontado para dois controladores de dominio
+    # internos E content filtering ligado -> o PREROUTING sequestra a porta 53 e o AD quebra.
+    "Corp": {"id": str(uuid.uuid4()), "vlanId": 10, "default": False, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal",
+             "dns": ["192.168.10.10", "192.168.10.11"], "cf": "WORK"},
+    "IoT": {"id": str(uuid.uuid4()), "vlanId": 20, "default": False, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal", "dns": [], "cf": "NONE"},
+    # Guest tem filtro ligado mas nenhum DNS interno: filtrar aqui e correto, nao e conflito.
+    "Guest": {"id": str(uuid.uuid4()), "vlanId": 30, "default": False, "isolationEnabled": True, "dhcpGuarding": {"enabled": True}, "zone": "Guest", "dns": [], "cf": "FAMILY"},
 }
+WANS = [
+    {"id": "w1", "name": "WAN1", "enabled": True, "active": True, "state": "UP", "failoverPriority": 1, "ipv4": {"type": "DHCP", "ipAddress": "203.0.113.5"}},
+    {"id": "w2", "name": "WAN2", "enabled": True, "active": False, "state": "STANDBY", "failoverPriority": 2, "ipv4": {"type": "DHCP", "ipAddress": "198.51.100.7"}},
+]
+# Na API classica os servidores VPN aparecem como networkconf e sao gravaveis.
+NETWORKCONF = [
+    {"_id": "nc-vpn-1", "name": "WireGuard Casa", "purpose": "vpn-server", "vpn_type": "wireguard", "wan": "w1", "enabled": True, "x_wg_private_key": "REDACTED"},
+    {"_id": "nc-vpn-2", "name": "Legado", "purpose": "vpn-server", "vpn_type": "pptp", "wan": "w1", "enabled": True},
+]
 GW_ID, AP_ID, SW_ID = str(uuid.uuid4()), str(uuid.uuid4()), str(uuid.uuid4())
 DEVICES = [
     {"id": GW_ID, "name": "UDM Pro", "model": "UDMPRO", "macAddress": "aa:bb:cc:00:00:01", "ipAddress": "192.168.1.1", "state": "ONLINE", "firmwareVersion": "4.1.13", "firmwareUpdatable": True, "features": ["gateway", "switching"], "interfaces": ["ports"]},
@@ -131,7 +145,9 @@ def clients(s: str, x_api_key: str | None = Header(None)):
 def _net(n, name):
     return {"id": n["id"], "name": name, "enabled": True, "management": "GATEWAY", "vlanId": n["vlanId"], "default": n["default"], "zoneId": ZONES[n["zone"]],
             "isolationEnabled": n["isolationEnabled"], "internetAccessEnabled": True, "mdnsForwardingEnabled": True, "dhcpGuarding": n["dhcpGuarding"],
-            "ipv4Configuration": {"hostIpAddress": f"192.168.{n['vlanId']}.1", "prefixLength": 24, "dhcpConfiguration": {"mode": "SERVER", "range": {"start": f"192.168.{n['vlanId']}.6", "stop": f"192.168.{n['vlanId']}.254"}}}}
+            "contentFilteringLevel": n["cf"],
+            "ipv4Configuration": {"hostIpAddress": f"192.168.{n['vlanId']}.1", "prefixLength": 24,
+                                  "dhcpConfiguration": {"mode": "SERVER", "dnsServers": n["dns"], "range": {"start": f"192.168.{n['vlanId']}.6", "stop": f"192.168.{n['vlanId']}.254"}}}}
 
 
 @mock.get(I + "/sites/{s}/networks")
@@ -154,6 +170,8 @@ async def upd_network(s: str, nid: str, req: Request, x_api_key: str | None = He
     for n in NETS.values():
         if n["id"] == nid:
             n["isolationEnabled"] = body.get("isolationEnabled", n["isolationEnabled"]); n["dhcpGuarding"] = body.get("dhcpGuarding", n["dhcpGuarding"])
+            if "contentFilteringLevel" in body:
+                n["cf"] = body["contentFilteringLevel"] or "NONE"
     return body
 
 
@@ -191,6 +209,25 @@ async def add_policy(s: str, req: Request, x_api_key: str | None = Header(None))
     auth(x_api_key); body = await req.json(); body["id"] = str(uuid.uuid4()); body["index"] = 20002; body["metadata"] = {"origin": "USER_DEFINED"}; POLICIES.append(body); return body
 
 
+# Precisa vir antes de /policies/{p}, senao "ordering" e capturado como id de politica.
+@mock.get(I + "/sites/{s}/firewall/policies/ordering")
+def get_ordering(s: str, x_api_key: str | None = Header(None)):
+    auth(x_api_key)
+    return {"firewallPolicyIds": [p["id"] for p in POLICIES if p.get("metadata", {}).get("origin") == "USER_DEFINED"]}
+
+
+@mock.put(I + "/sites/{s}/firewall/policies/ordering")
+async def put_ordering(s: str, req: Request, x_api_key: str | None = Header(None)):
+    auth(x_api_key); body = await req.json()
+    ids = body.get("firewallPolicyIds", [])
+    rank = {pid: i for i, pid in enumerate(ids)}
+    POLICIES.sort(key=lambda p: rank.get(p["id"], 999))
+    for p in POLICIES:
+        if p["id"] in rank:
+            p["index"] = 20000 + rank[p["id"]]
+    return {"firewallPolicyIds": ids}
+
+
 @mock.get(I + "/sites/{s}/firewall/policies/{p}")
 def get_policy(s: str, p: str, x_api_key: str | None = Header(None)):
     auth(x_api_key); return next((x for x in POLICIES if x["id"] == p), None) or _404()
@@ -221,12 +258,26 @@ def del_policy(s: str, p: str, x_api_key: str | None = Header(None)):
 
 @mock.get(I + "/sites/{s}/vpn/servers")
 def vpn(s: str, x_api_key: str | None = Header(None)):
-    auth(x_api_key); return page([{"id": "v1", "name": "WireGuard Casa", "type": "WIREGUARD", "enabled": True}, {"id": "v2", "name": "Legado", "type": "PPTP", "enabled": True}])
+    auth(x_api_key)
+    return page([{"id": "v1", "name": "WireGuard Casa", "type": "WIREGUARD", "enabled": True},
+                 {"id": "v2", "name": "Legado", "type": "PPTP", "enabled": True}])
 
 
 @mock.get(I + "/sites/{s}/wans")
 def wans(s: str, x_api_key: str | None = Header(None)):
-    auth(x_api_key); return page([{"id": "w1", "name": "WAN1", "enabled": True, "ipv4": {"type": "DHCP"}}])
+    auth(x_api_key); return page(WANS)
+
+
+@mock.post("/_sim/failover")
+def sim_failover():
+    """Helper apenas do mock: promove a WAN em espera, como num failover real."""
+    cur = next((w for w in WANS if w["active"]), WANS[0])
+    nxt = next((w for w in WANS if w["id"] != cur["id"] and w["enabled"]), None)
+    if not nxt:
+        return {"ok": False, "message": "Nenhuma WAN alternativa."}
+    cur["active"], cur["state"] = False, "STANDBY"
+    nxt["active"], nxt["state"] = True, "UP"
+    return {"ok": True, "from": cur["name"], "to": nxt["name"], "activeWanIp": nxt["ipv4"]["ipAddress"]}
 
 
 for path in ["/sites/{s}/acl-rules", "/sites/{s}/dns/policies", "/sites/{s}/vpn/site-to-site-tunnels", "/sites/{s}/traffic-matching-lists", "/sites/{s}/hotspot/vouchers", "/sites/{s}/dpi/categories"]:
@@ -311,6 +362,21 @@ async def set_setting(key: str, req: Request, sid: str | None = None, x_api_key:
 @mock.post(C + "/cmd/stamgr")
 async def stamgr(req: Request, x_api_key: str | None = Header(None)):
     auth(x_api_key); return cwrap([await req.json()])
+
+
+@mock.get(C + "/rest/networkconf")
+def networkconf(x_api_key: str | None = Header(None)):
+    auth(x_api_key); return cwrap(NETWORKCONF)
+
+
+@mock.put(C + "/rest/networkconf/{cid}")
+async def upd_networkconf(cid: str, req: Request, x_api_key: str | None = Header(None)):
+    auth(x_api_key); body = await req.json()
+    for n in NETWORKCONF:
+        if n["_id"] == cid:
+            n.update({k: v for k, v in body.items() if k != "_id"})
+            return cwrap([n])
+    _404()
 
 
 if __name__ == "__main__":

@@ -157,3 +157,140 @@ def test_raw_explorer_and_static(api):
     assert api.get("/api/raw?api=classic&path=/stat/health").json()[0]["subsystem"] == "wan"
     assert len(api.get("/api/endpoints").json()) == 73
     assert "Painel UniFi" in api.get("/").text
+
+
+# ------------------------------------------------- continuidade (AD / WAN)
+@pytest.fixture
+def restore_mock():
+    """Devolve o mock ao estado inicial: os testes daqui mudam config de proposito."""
+    import copy
+    saved = (copy.deepcopy(mock_udm.NETS), copy.deepcopy(mock_udm.POLICIES),
+             copy.deepcopy(mock_udm.NETWORKCONF), copy.deepcopy(mock_udm.WANS))
+    yield
+    mock_udm.NETS.clear(); mock_udm.NETS.update(saved[0])
+    mock_udm.POLICIES[:] = saved[1]
+    mock_udm.NETWORKCONF[:] = saved[2]
+    mock_udm.WANS[:] = saved[3]
+
+
+def _client(api):
+    from app.main import client
+    return client()
+
+
+def test_detects_ad_dns_hijacked_by_content_filtering(api, restore_mock):
+    """A VLAN Corp aponta para controladores de dominio E tem filtro ligado -> conflito."""
+    from app.orchestrator import detect_ad_dns
+    d = detect_ad_dns(_client(api))
+    names = [c["name"] for c in d["conflicts"]]
+    assert names == ["Corp"]
+    conf = d["conflicts"][0]
+    assert conf["adDnsServers"] == ["192.168.10.10", "192.168.10.11"]
+    assert conf["contentFilteringValue"] == "WORK"
+    assert "PREROUTING" in conf["impact"]
+
+
+def test_guest_with_filter_but_no_internal_dns_is_not_flagged(api, restore_mock):
+    """Guest tem content filtering ligado, mas nenhum DNS interno: filtrar ali e correto."""
+    from app.orchestrator import detect_ad_dns
+    d = detect_ad_dns(_client(api))
+    assert "Guest" not in [c["name"] for c in d["conflicts"]]
+
+
+def test_plan_leads_with_the_decisive_step(api, restore_mock):
+    """A isencao do content filtering precisa vir primeiro: e a unica que vence o DNAT."""
+    from app.orchestrator import build_ad_dns_plan
+    plan = build_ad_dns_plan(_client(api))
+    assert plan["steps"][0]["decisive"] is True
+    assert plan["steps"][0]["action"] == "exempt_content_filtering"
+    assert [s["decisive"] for s in plan["steps"][1:]] == [False, False]
+
+
+def test_applying_plan_resolves_the_ad_dns_conflict(api, restore_mock):
+    from app.orchestrator import apply_ad_dns_plan, detect_ad_dns
+    c = _client(api)
+    assert detect_ad_dns(c)["conflicts"]
+    r = apply_ad_dns_plan(c)
+    assert r["resolved"] is True and r["remaining"] == 0
+    assert all(a["ok"] for a in r["applied"])
+    assert not detect_ad_dns(c)["conflicts"]
+    # a politica de reforco foi criada e ficou em primeiro na ordem de avaliacao
+    user = [p for p in mock_udm.POLICIES if p.get("metadata", {}).get("origin") == "USER_DEFINED"]
+    assert "AD DNS" in user[0]["name"]
+
+
+def test_wan_snapshot_identifies_active_wan(api, restore_mock):
+    from app.orchestrator import wan_snapshot
+    snap = wan_snapshot(_client(api))
+    assert snap["activeWanName"] == "WAN1"
+    assert snap["activeWanIp"] == "203.0.113.5"
+    assert len(snap["wans"]) == 2
+
+
+def test_failover_strands_vpn_and_reconcile_repairs_it(api, restore_mock):
+    """O problema real: WAN2 assume e a VPN continua escutando na WAN1."""
+    from app.orchestrator import plan_vpn_reconcile, reconcile_vpn
+    c = _client(api)
+    assert plan_vpn_reconcile(c)["inSync"] is True
+
+    mock_udm.WANS[0].update(active=False, state="STANDBY")
+    mock_udm.WANS[1].update(active=True, state="UP")
+
+    stale = plan_vpn_reconcile(c)
+    assert stale["inSync"] is False
+    assert stale["activeWanName"] == "WAN2"
+    assert {ch["name"] for ch in stale["changes"]} == {"WireGuard Casa", "Legado"}
+
+    dry = reconcile_vpn(c, dry_run=True)
+    assert dry["dryRun"] is True and dry["applied"] == []
+    assert mock_udm.NETWORKCONF[0]["wan"] == "w1", "dry-run nao pode gravar"
+
+    done = reconcile_vpn(c, dry_run=False)
+    assert all(a["ok"] for a in done["applied"])
+    assert mock_udm.NETWORKCONF[0]["wan"] == "w2"
+    assert plan_vpn_reconcile(c)["inSync"] is True
+
+
+def test_simulate_failover_changes_nothing(api, restore_mock):
+    from app.orchestrator import simulate_failover
+    c = _client(api)
+    before = [dict(n) for n in mock_udm.NETWORKCONF]
+    sim = simulate_failover(c, "w2")
+    assert sim["possible"] is True and sim["target"]["name"] == "WAN2"
+    assert {i["name"] for i in sim["impacted"]} == {"WireGuard Casa", "Legado"}
+    assert [dict(n) for n in mock_udm.NETWORKCONF] == before
+
+
+def test_monitor_records_wan_transition(api, restore_mock):
+    from app.orchestrator import FailoverMonitor
+    c = _client(api)
+    m = FailoverMonitor(lambda: c, interval=5)
+    m.poll()
+    mock_udm.WANS[0].update(active=False, state="STANDBY")
+    mock_udm.WANS[1].update(active=True, state="UP")
+    out = m.poll()
+    assert out["transition"]["from"] == "WAN1" and out["transition"]["to"] == "WAN2"
+    assert m.status()["history"][0]["toIp"] == "198.51.100.7"
+
+
+def test_continuity_endpoints(api, restore_mock):
+    dns = api.get("/api/continuity/dns-ad").json()
+    assert dns["detection"]["conflicts"][0]["name"] == "Corp"
+    assert dns["steps"][0]["decisive"] is True
+
+    wan = api.get("/api/continuity/wan").json()
+    assert wan["snapshot"]["activeWanName"] == "WAN1"
+    assert wan["monitor"]["enabled"] is False
+
+    sim = api.get("/api/continuity/wan/simulate?targetWanId=w2").json()
+    assert sim["possible"] is True
+
+    assert api.post("/api/continuity/vpn/reconcile", json={"dryRun": True}).json()["dryRun"] is True
+
+    st = api.post("/api/continuity/monitor", json={"enabled": True, "intervalSec": 5, "dryRun": True}).json()
+    assert st["enabled"] is True
+    assert api.post("/api/continuity/monitor/poll").json()["status"]["last"]["activeWanName"] == "WAN1"
+    assert api.post("/api/continuity/monitor", json={"enabled": False}).json()["enabled"] is False
+
+    applied = api.post("/api/continuity/dns-ad/apply", json={}).json()
+    assert applied["resolved"] is True

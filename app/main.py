@@ -13,6 +13,16 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .audit import SecurityAudit, apply_fix, build_block_policy
+from .orchestrator import (
+    FailoverMonitor,
+    apply_ad_dns_plan,
+    apply_ad_dns_step,
+    build_ad_dns_plan,
+    plan_vpn_reconcile,
+    reconcile_vpn,
+    simulate_failover,
+    wan_snapshot,
+)
 from .threats import ALARM_HINTS, explain_event, explain_system_event, summarize
 from .unifi_client import UniFiClient, UniFiConfig, UniFiError
 
@@ -429,6 +439,60 @@ def audit_apply(body: dict = Body(...)):
     if not action:
         raise HTTPException(400, "action obrigatoria")
     return apply_fix(client(), action, params)
+
+
+# ----------------------------------------------------------- continuidade
+monitor = FailoverMonitor(client)
+
+
+@app.get("/api/continuity/dns-ad")
+def continuity_dns_ad(adServers: str | None = None):
+    """Detecta VLANs com DNS de Active Directory sequestrado pelo content filtering."""
+    servers = [s.strip() for s in (adServers or "").split(",") if s.strip()]
+    return build_ad_dns_plan(client(), {"adServers": servers})
+
+
+@app.post("/api/continuity/dns-ad/apply")
+def continuity_dns_ad_apply(body: dict = Body(None)):
+    return apply_ad_dns_plan(client(), body or {})
+
+
+@app.post("/api/continuity/dns-ad/step")
+def continuity_dns_ad_step(body: dict = Body(...)):
+    action = body.get("action")
+    if not action:
+        raise HTTPException(400, "action obrigatoria")
+    return apply_ad_dns_step(client(), action, body.get("params") or {})
+
+
+@app.get("/api/continuity/wan")
+def continuity_wan():
+    c = client()
+    return {"snapshot": wan_snapshot(c), "vpn": plan_vpn_reconcile(c), "monitor": monitor.status()}
+
+
+@app.get("/api/continuity/wan/simulate")
+def continuity_wan_simulate(targetWanId: str | None = None):
+    """Somente leitura: mostra o efeito de um failover antes que ele aconteca."""
+    return simulate_failover(client(), targetWanId)
+
+
+@app.post("/api/continuity/vpn/reconcile")
+def continuity_vpn_reconcile(body: dict = Body(None)):
+    dry = True if body is None else bool(body.get("dryRun", True))
+    return reconcile_vpn(client(), dry_run=dry)
+
+
+@app.post("/api/continuity/monitor")
+def continuity_monitor(body: dict = Body(...)):
+    if body.get("enabled"):
+        return monitor.start(interval=body.get("intervalSec"), auto_reconcile=bool(body.get("autoReconcile")), dry_run=bool(body.get("dryRun", True)))
+    return monitor.stop()
+
+
+@app.post("/api/continuity/monitor/poll")
+def continuity_monitor_poll():
+    return {"poll": monitor.poll(), "status": monitor.status()}
 
 
 # ------------------------------------------------------------ raw explorer

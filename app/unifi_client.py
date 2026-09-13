@@ -237,6 +237,19 @@ class UniFiClient:
     def acl_rules(self) -> list[dict]:
         return self.paged(self.sp("/acl-rules"))
 
+    def firewall_ordering(self) -> Any:
+        """Ordem atual das politicas definidas pelo usuario (a primeira que casar decide)."""
+        return self.api("GET", self.sp("/firewall/policies/ordering"))
+
+    def set_firewall_ordering(self, policy_ids: list[str]) -> Any:
+        return self.api("PUT", self.sp("/firewall/policies/ordering"), json={"firewallPolicyIds": policy_ids})
+
+    def create_dns_policy(self, body: dict) -> dict:
+        return self.api("POST", self.sp("/dns/policies"), json=body)
+
+    def delete_dns_policy(self, policy_id: str) -> Any:
+        return self.api("DELETE", self.sp(f"/dns/policies/{policy_id}"))
+
     def dns_policies(self) -> list[dict]:
         return self.paged(self.sp("/dns/policies"))
 
@@ -345,6 +358,18 @@ class UniFiClient:
 
     def set_setting(self, key: str, body: dict) -> Any:
         return self.classic("PUT", f"/set/setting/{key}", json=body)
+
+    def networkconf(self) -> list[dict]:
+        """Configuracao bruta de redes da API classica.
+
+        A Integration API expoe /vpn/servers somente para leitura; na API classica os
+        servidores VPN aparecem aqui (purpose='vpn-server') e podem ser reescritos,
+        que e o unico caminho para reamarrar a escuta da VPN a outra WAN.
+        """
+        return self.classic("GET", "/rest/networkconf") or []
+
+    def update_networkconf(self, conf_id: str, body: dict) -> Any:
+        return self.classic("PUT", f"/rest/networkconf/{conf_id}", json=body)
 
     def block_client(self, mac: str, block: bool = True) -> Any:
         cmd = "block-sta" if block else "unblock-sta"

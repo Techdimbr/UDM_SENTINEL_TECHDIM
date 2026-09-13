@@ -7,7 +7,8 @@ const state = { view: 'overview', cache: {}, charts: [] };
 const TITLES = {
   overview: 'Visão geral', threats: 'Ameaças detectadas (IDS/IPS)', audit: 'Auditoria e configuração guiada de segurança',
   firewall: 'Firewall, zonas e políticas', networks: 'Redes e WiFi', clients: 'Clientes conectados', devices: 'Dispositivos UniFi',
-  logs: 'Logs de eventos e alarmes', vpn: 'VPN, WAN e DNS', explorer: 'Explorador da API', settings: 'Configurações',
+  logs: 'Logs de eventos e alarmes', vpn: 'VPN, WAN e DNS', continuity: 'Continuidade: DNS do Active Directory e failover de WAN',
+  explorer: 'Explorador da API', settings: 'Configurações',
 };
 
 // ------------------------------------------------------------------ utils
@@ -381,6 +382,161 @@ VIEWS.vpn = async (force) => {
     <div><b>Gateway</b><div class="kv mt"><b>UPnP</b><span>${sec.usg?.upnp_enabled ? tag('ATIVO', 'alto') : tag('off', 'ok')}</span><b>GeoIP</b><span>${sec.usg?.geo_ip_filtering_enabled ? 'ativo (' + esc(sec.usg?.geo_ip_filtering_block || '') + ')' : 'off'}</span><b>Log WAN</b><span>${sec.usg?.firewall_wan_default_log ? 'sim' : 'não'}</span><b>Log LAN</b><span>${sec.usg?.firewall_lan_default_log ? 'sim' : 'não'}</span><b>mDNS</b><span>${sec.usg?.mdns_enabled ? 'sim' : 'não'}</span><b>DPI</b><span>${sec.dpi?.enabled ? 'sim' : 'não'}</span></div></div>
     <div><b>Gestão</b><div class="kv mt"><b>SSH</b><span>${sec.mgmt?.x_ssh_enabled ? tag('ativo', 'baixo') : 'off'}</span><b>Auto-update</b><span>${sec.mgmt?.auto_upgrade ? 'sim' : 'não'}</span><b>LED</b><span>${sec.mgmt?.led_enabled ? 'on' : 'off'}</span></div></div>
   </div><details class="mt"><summary class="small muted">JSON completo</summary><pre>${esc(JSON.stringify(sec, null, 2))}</pre></details></div>` : ''}`;
+};
+
+// ----------------------------------------------------------- continuidade
+VIEWS.continuity = async (force) => {
+  const adParam = state.adServers ? `?adServers=${encodeURIComponent(state.adServers)}` : '';
+  const [dns, wan] = await Promise.all([
+    api('/api/continuity/dns-ad' + adParam),
+    api('/api/continuity/wan'),
+  ]);
+  state.contDns = dns; state.contWan = wan;
+  const d = dns.detection, m = wan.monitor, v = wan.vpn;
+  const confRow = c => `<tr><td><b>${esc(c.name)}</b><div class="small muted">VLAN ${c.vlanId}</div></td>
+    <td class="mono small">${c.adDnsServers.map(esc).join('<br>')}</td>
+    <td class="mono small muted">${esc(c.gatewayIp || '-')}</td>
+    <td>${tag(String(c.contentFilteringValue), 'alto')}<div class="small muted">${esc(c.contentFilteringField || '')}</div></td></tr>`;
+
+  view.innerHTML = `
+  <div class="help">Duas falhas operacionais que o app do UniFi não mostra e que só aparecem quando algo já quebrou:
+  o <b>content filtering sequestrando o DNS do Active Directory</b> e a <b>VPN presa na WAN antiga depois do failover</b>.</div>
+
+  <div class="card mt"><h3>1 · DNS do Active Directory vs. content filtering</h3>
+    <p class="small">Quando o content filtering é ativado numa rede, o gateway passa a redirecionar a porta 53 para o resolvedor
+    do filtro ainda em <b>PREROUTING</b> — antes da etapa de filtragem. Por isso <b>nenhuma regra de firewall "permitir" desfaz o
+    sequestro</b>: a consulta nunca chega ao controlador de domínio, e os registros SRV do AD (<span class="mono">_ldap._tcp</span>,
+    <span class="mono">_kerberos._tcp</span>) não existem no resolvedor público. Resultado: logon, ingresso no domínio e replicação falham.</p>
+    <div class="toolbar">
+      <div class="field" style="flex:1;margin:0"><label>Controladores de domínio (opcional — separados por vírgula; vazio = detectar sozinho)</label>
+        <input id="adSrv" value="${esc(state.adServers || '')}" placeholder="192.168.10.10, 192.168.10.11"></div>
+      <button class="btn" onclick="contDetect()">Detectar</button>
+    </div>
+    <div class="grid g2 mt">
+      <div><b>${d.conflicts.length ? '⚠ VLANs com DNS sequestrado' : '✔ Nenhuma VLAN com DNS sequestrado'}</b>
+        ${d.conflicts.length ? `<table class="mt"><tr><th>Rede</th><th>DNS do AD</th><th>Gateway</th><th>Filtro</th></tr>${d.conflicts.map(confRow).join('')}</table>
+        <div class="small" style="color:var(--bad);margin-top:8px">${esc(d.conflicts[0].impact)}</div>` :
+        `<div class="muted small mt">${d.networksChecked} rede(s) verificadas. Nenhuma aponta para um DNS interno que esteja sendo filtrado.</div>`}</div>
+      <div><b>Redes com DNS interno já saudável</b>
+        ${d.healthy.length ? `<table class="mt">${d.healthy.map(h => `<tr><td>${esc(h.name)}</td><td class="mono small">${h.adDnsServers.map(esc).join(', ')}</td><td>${tag('sem filtro', 'ok')}</td></tr>`).join('')}</table>`
+        : '<div class="muted small mt">Nenhuma.</div>'}</div>
+    </div>
+    ${dns.steps.length ? `<h4 class="mt">Plano de correção (${dns.steps.length} passos, nesta ordem)</h4>
+      <ol class="steps">${dns.steps.map((s, i) => `<li style="margin-bottom:8px">
+        ${s.decisive ? tag('decisivo', 'ok') : tag('reforço', 'info')} <b>${esc(s.title)}</b>
+        <div class="small muted">${esc(s.why)}</div>
+        <div class="small mono muted">${esc(s.api)}</div>
+        <button class="btn sm mt" onclick="contStep(${i})">Aplicar só este passo</button></li>`).join('')}</ol>
+      <button class="btn primary" onclick="contApplyAll()">Aplicar plano completo</button>
+      <span class="small muted">cada alteração é feita via API, com confirmação</span>`
+    : `<div class="alert ok mt">Nada a corrigir: o DNS do Active Directory não está sendo interceptado.</div>`}
+    <div id="contDnsOut" class="mt"></div>
+  </div>
+
+  <div class="card mt"><h3>2 · Failover de WAN e religamento da VPN</h3>
+    <p class="small">O servidor VPN amarra a escuta a uma WAN. Quando a secundária assume, o endpoint continua apontando para a
+    WAN antiga e os clientes não reconectam. A Integration API expõe <span class="mono">/wans</span> e <span class="mono">/vpn/servers</span>
+    <b>somente para leitura</b> — a detecção usa ela, e a reescrita do vínculo só é possível pela API clássica
+    (<span class="mono">/rest/networkconf</span>). Por isso a reconciliação começa sempre em <b>simulação</b>.</p>
+    <div class="grid g2 mt">
+      <div><b>Interfaces WAN</b><table class="mt"><tr><th>WAN</th><th>Estado</th><th>IP</th><th>Prioridade</th></tr>
+        ${wan.snapshot.wans.map(w => `<tr><td><b>${esc(w.name)}</b> ${w.id === wan.snapshot.activeWanId ? tag('ATIVA', 'ok') : ''}</td>
+          <td>${esc(String(w.state ?? '-'))}</td><td class="mono small">${esc(w.ipAddress || '-')}</td><td class="small">${esc(String(w.priority ?? '-'))}</td></tr>`).join('')}</table></div>
+      <div><b>Vínculo dos servidores VPN</b>
+        ${v.changes.length ? `<div class="alert mt">${v.changes.length} servidor(es) fora de sincronia com a WAN ativa (${esc(v.activeWanName || '?')}).</div>
+          <table>${v.changes.map(ch => `<tr><td><b>${esc(ch.name)}</b><div class="small muted">${esc(ch.type || '')}</div></td>
+            <td class="small">escuta em <span class="mono">${esc(String(ch.from))}</span> → deveria ser <span class="mono">${esc(String(ch.toName || ch.to))}</span></td>
+            <td>${ch.writable ? tag('gravável', 'ok') : tag('só leitura', 'alto')}</td></tr>`).join('')}</table>`
+          : `<div class="alert ok mt">Todos os servidores VPN apontam para a WAN ativa (${esc(v.activeWanName || '?')}).</div>`}
+        ${v.note ? `<div class="small" style="color:var(--warn)">${esc(v.note)}</div>` : ''}</div>
+    </div>
+    <div class="toolbar mt">
+      <label style="margin:0">Simular queda para</label>
+      <select id="simWan">${wan.snapshot.wans.filter(w => w.id !== wan.snapshot.activeWanId).map(w => `<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('') || '<option value="">(sem WAN alternativa)</option>'}</select>
+      <button class="btn" onclick="contSimulate()">Simular failover (só leitura)</button>
+      <button class="btn" onclick="contReconcile(true)">Reconciliar em simulação</button>
+      <button class="btn primary" onclick="contReconcile(false)">Aplicar reconciliação</button>
+    </div>
+    <div id="contWanOut" class="mt"></div>
+
+    <h4 class="mt">Monitor automático</h4>
+    <p class="small muted">Vigia a WAN ativa em segundo plano — o failover não espera alguém estar olhando o painel.</p>
+    <div class="toolbar">
+      <div class="field" style="margin:0"><label>Intervalo (s)</label><input id="monInt" type="number" min="5" value="${m.intervalSec}" style="width:90px"></div>
+      <label style="margin:0"><input type="checkbox" id="monAuto" ${m.autoReconcile ? 'checked' : ''}> reconciliar sozinho ao detectar troca</label>
+      <label style="margin:0"><input type="checkbox" id="monDry" ${m.dryRun ? 'checked' : ''}> manter em simulação (não grava)</label>
+      ${m.enabled ? `<button class="btn danger" onclick="contMonitor(false)">Parar monitor</button>` : `<button class="btn primary" onclick="contMonitor(true)">Iniciar monitor</button>`}
+      <button class="btn" onclick="contPoll()">Verificar agora</button>
+      <span class="small">${m.enabled ? tag('ligado', 'ok') : tag('desligado', 'info')} ${m.error ? tag('erro', 'alto') : ''}</span>
+    </div>
+    ${m.error ? `<div class="alert">Monitor: ${esc(m.error)}</div>` : ''}
+    <div class="mt"><b>Transições detectadas (${m.history.length})</b>
+      ${m.history.length ? `<table class="mt"><tr><th>Quando</th><th>De</th><th>Para</th><th>Ação</th></tr>
+        ${m.history.map(h => `<tr><td class="small muted">${fmtDate(h.at)}</td><td>${esc(String(h.from))}<div class="small mono muted">${esc(h.fromIp || '')}</div></td>
+        <td>${esc(String(h.to))}<div class="small mono muted">${esc(h.toIp || '')}</div></td>
+        <td class="small">${h.reconcile ? (h.reconcile.error ? '⚠ ' + esc(h.reconcile.error) : (h.reconcile.dryRun ? 'simulado: ' : 'aplicado: ') + h.reconcile.changes + ' mudança(s)') : '—'}</td></tr>`).join('')}</table>`
+        : '<div class="muted small">Nenhuma troca de WAN registrada desde que o monitor começou.</div>'}</div>
+  </div>`;
+};
+
+window.contDetect = () => { state.adServers = $('#adSrv').value.trim(); render(true); };
+
+window.contStep = async i => {
+  const s = state.contDns.steps[i];
+  if (!confirm(`Aplicar este passo?\n\n${s.title}\n\n${s.api}`)) return;
+  const out = $('#contDnsOut'); out.innerHTML = '<span class="muted">Aplicando…</span>';
+  try { const r = await api('/api/continuity/dns-ad/step', { method: 'POST', body: { action: s.action, params: s.params } });
+    out.innerHTML = `<div class="alert ok">✔ ${esc(r.message || 'Passo aplicado.')}</div>`; setTimeout(() => render(true), 900); }
+  catch (e) { out.innerHTML = `<div class="alert">Falha: ${esc(e.message)}</div>`; }
+};
+
+window.contApplyAll = async () => {
+  const n = state.contDns.steps.length;
+  if (!confirm(`Aplicar os ${n} passos no seu UDM Pro agora?\n\nO passo decisivo desativa o content filtering nas VLANs com DNS de Active Directory.`)) return;
+  const out = $('#contDnsOut'); out.innerHTML = '<span class="muted">Aplicando plano…</span>';
+  try {
+    const r = await api('/api/continuity/dns-ad/apply', { method: 'POST', body: { adServers: (state.adServers || '').split(',').map(s => s.trim()).filter(Boolean) } });
+    out.innerHTML = `<div class="alert ${r.resolved ? 'ok' : ''}">${esc(r.message)}</div>
+      <table class="mt">${r.applied.map(a => `<tr><td>${a.ok ? '✔' : '✕'}</td><td>${esc(a.step)}</td><td class="small muted">${esc(a.message || '')}</td></tr>`).join('')}</table>`;
+    setTimeout(() => render(true), 1500);
+  } catch (e) { out.innerHTML = `<div class="alert">Falha: ${esc(e.message)}</div>`; }
+};
+
+window.contSimulate = async () => {
+  const out = $('#contWanOut'); out.innerHTML = '<span class="muted">Simulando…</span>';
+  try {
+    const r = await api(`/api/continuity/wan/simulate?targetWanId=${encodeURIComponent($('#simWan').value)}`);
+    if (!r.possible) { out.innerHTML = `<div class="alert info">${esc(r.reason)}</div>`; return; }
+    out.innerHTML = `<div class="alert ${r.wouldSelfHeal ? 'ok' : 'info'}">${esc(r.summary)}</div>
+      ${r.impacted.length ? `<table>${r.impacted.map(i => `<tr><td><b>${esc(i.name)}</b></td><td class="small">${esc(i.effect)}</td><td>${i.writable ? tag('corrigível via API', 'ok') : tag('exige ajuste manual', 'alto')}</td></tr>`).join('')}</table>` : ''}
+      <div class="small muted mt">Simulação somente leitura — nada foi alterado no equipamento.</div>`;
+  } catch (e) { out.innerHTML = `<div class="alert">Falha: ${esc(e.message)}</div>`; }
+};
+
+window.contReconcile = async (dry) => {
+  if (!dry && !confirm('Reescrever o vínculo de WAN dos servidores VPN agora?\n\nIsto grava na configuração do UDM Pro pela API clássica.')) return;
+  const out = $('#contWanOut'); out.innerHTML = '<span class="muted">Calculando…</span>';
+  try {
+    const r = await api('/api/continuity/vpn/reconcile', { method: 'POST', body: { dryRun: dry } });
+    out.innerHTML = `<div class="alert ${r.inSync ? 'ok' : 'info'}">${r.dryRun ? 'Simulação — nada foi gravado. ' : ''}${r.inSync ? 'Servidores VPN em sincronia com a WAN ativa.' : r.changes.length + ' servidor(es) fora de sincronia.'}</div>
+      ${r.changes.length ? `<table>${r.changes.map(c => `<tr><td><b>${esc(c.name)}</b></td><td class="small">${esc(c.reason)}</td></tr>`).join('')}</table>` : ''}
+      ${(r.applied || []).length ? `<table class="mt">${r.applied.map(a => `<tr><td>${a.ok ? '✔' : '✕'}</td><td>${esc(a.name)}</td><td class="small muted">${esc(a.message)}</td></tr>`).join('')}</table>` : ''}`;
+    if (!dry) setTimeout(() => render(true), 1200);
+  } catch (e) { out.innerHTML = `<div class="alert">Falha: ${esc(e.message)}</div>`; }
+};
+
+window.contMonitor = async (on) => {
+  try {
+    await api('/api/continuity/monitor', { method: 'POST', body: { enabled: on, intervalSec: Number($('#monInt').value) || 30, autoReconcile: $('#monAuto').checked, dryRun: $('#monDry').checked } });
+    showAlert(on ? 'Monitor de failover iniciado.' : 'Monitor parado.', 'ok'); render(true);
+  } catch (e) { showAlert('Falha: ' + e.message); }
+};
+
+window.contPoll = async () => {
+  try { const r = await api('/api/continuity/monitor/poll', { method: 'POST' });
+    showAlert(r.poll.transition ? `Troca de WAN detectada: ${r.poll.transition.from} → ${r.poll.transition.to}` : 'Nenhuma troca de WAN desde a última leitura.', r.poll.transition ? '' : 'ok');
+    render(true);
+  } catch (e) { showAlert('Falha: ' + e.message); }
 };
 
 // --------------------------------------------------------------- explorer
