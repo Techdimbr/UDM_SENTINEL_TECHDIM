@@ -179,6 +179,155 @@ DEFAULT_CATEGORY = {
     ],
 }
 
+# Camada de aprofundamento: como a tecnica funciona, o que pode causar, em que etapa de
+# um ataque aparece e o mapeamento MITRE ATT&CK. Indexada pelo titulo da categoria acima
+# para nao duplicar o catalogo.
+CATEGORY_DETAIL: dict[str, dict[str, Any]] = {
+    "Malware / Trojan / Botnet (C&C)": {
+        "how": "O malware ja instalado abre uma conexao de saida periodica (beacon) para o servidor do operador. Usa portas e protocolos comuns - HTTPS, DNS, HTTP - justamente para se misturar ao trafego legitimo e atravessar o firewall, que costuma liberar saida. O IDS reconhece o padrao do beacon: intervalo regular, tamanho de pacote caracteristico, certificado TLS ou User-Agent especifico da familia.",
+        "canCause": "Roubo de credenciais e arquivos, instalacao de ransomware, uso da sua conexao para atacar terceiros (e a responsabilidade legal que vem junto) e persistencia: enquanto o canal existir, o invasor volta mesmo depois de limpar o sintoma.",
+        "stage": "Comando e controle - o invasor ja esta dentro",
+        "mitre": [{"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"},
+                  {"id": "T1571", "name": "Non-Standard Port", "tactic": "Command and Control"},
+                  {"id": "T1105", "name": "Ingress Tool Transfer", "tactic": "Command and Control"}],
+        "urgency": "Trate como incidente ativo: ha um host comprometido na rede agora.",
+    },
+    "Tentativa de exploracao de vulnerabilidade": {
+        "how": "O atacante envia uma requisicao propositalmente malformada para um servico exposto, explorando uma falha conhecida (estouro de buffer, desserializacao insegura, injecao de template). A assinatura casa com o formato exato do payload publicado na CVE. A maior parte vem de bots que varrem a internet inteira testando a falha da semana.",
+        "canCause": "Execucao remota de codigo no dispositivo alvo, o que normalmente vira acesso administrativo. A partir dai o invasor tem um ponto de apoio interno - e cameras, NAS e DVRs sao alvos preferidos porque quase nunca sao atualizados.",
+        "stage": "Intrusao inicial",
+        "mitre": [{"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access"},
+                  {"id": "T1203", "name": "Exploitation for Client Execution", "tactic": "Execution"}],
+        "urgency": "Se foi bloqueado e o servico nem esta exposto, e ruido. Se o alvo tem porta aberta na WAN, verifique o dispositivo hoje.",
+    },
+    "Varredura / Reconhecimento de rede": {
+        "how": "Envio sistematico de pacotes para varias portas ou varios IPs, medindo o que responde. Um SYN scan manda so o primeiro pacote do handshake: porta aberta responde SYN/ACK, fechada responde RST, filtrada nao responde nada. O IDS detecta pela taxa - muitas tentativas distintas vindas da mesma origem em pouco tempo.",
+        "canCause": "Sozinha nao causa dano: e levantamento. O risco e o que vem depois, porque o atacante agora sabe exatamente quais servicos e versoes existem para atacar. Vindo de um IP interno o significado inverte - indica host comprometido mapeando a rede por dentro.",
+        "stage": "Reconhecimento - preparacao de ataque",
+        "mitre": [{"id": "T1595", "name": "Active Scanning", "tactic": "Reconnaissance"},
+                  {"id": "T1046", "name": "Network Service Discovery", "tactic": "Discovery"}],
+        "urgency": "Da internet: ruido constante, normal. De dentro da rede: investigue o host.",
+    },
+    "Negacao de servico (DoS/DDoS)": {
+        "how": "Consome um recurso finito ate ele acabar: banda do link, tabela de conexoes do firewall, CPU do servidor. Um SYN flood abre milhares de conexoes pela metade e nunca completa o handshake, enchendo a tabela de estados. Amplificacao usa servicos UDP (DNS, NTP, memcached) que respondem muito mais do que recebem, com o IP de origem forjado para o da vitima.",
+        "canCause": "Queda do link ou dos servicos enquanto durar. Se a origem for interna, seu IP publico entra em listas de reputacao e o provedor pode suspender o contrato - alem de indicar que ha um dispositivo seu recrutado em botnet.",
+        "stage": "Impacto",
+        "mitre": [{"id": "T1498", "name": "Network Denial of Service", "tactic": "Impact"},
+                  {"id": "T1499", "name": "Endpoint Denial of Service", "tactic": "Impact"}],
+        "urgency": "Origem interna e urgente. Ataque de fora sustentado exige acionar o provedor - filtrar no seu gateway nao devolve a banda ja consumida no caminho.",
+    },
+    "Violacao de politica / Uso de P2P, TOR ou proxies": {
+        "how": "Trafego tecnicamente valido, mas de categorias que contornam controles. TOR encapsula em varias camadas de criptografia e salta por reles, escondendo o destino final. BitTorrent conecta a centenas de pares desconhecidos ao mesmo tempo. Proxies e VPNs de terceiros tiram a visibilidade do gateway sobre o que trafega.",
+        "canCause": "Perda de visibilidade (voce deixa de enxergar o que sai da rede), download de arquivos de fontes nao verificadas e exposicao juridica por conteudo. TOR em rede corporativa costuma ser exfiltracao ou malware buscando canal de controle, nao curiosidade do usuario.",
+        "stage": "Evasao de controles",
+        "mitre": [{"id": "T1090.003", "name": "Proxy: Multi-hop Proxy", "tactic": "Command and Control"},
+                  {"id": "T1048", "name": "Exfiltration Over Alternative Protocol", "tactic": "Exfiltration"}],
+        "urgency": "Avalie o contexto: pode ser uso legitimo. Em rede de empresa, TOR merece conversa com o dono do dispositivo.",
+    },
+    "Phishing / Roubo de credenciais": {
+        "how": "A vitima recebe um link que imita um servico real - dominio parecido, certificado TLS valido, pagina clonada. Ao digitar a senha, ela vai para o atacante. Kits modernos fazem proxy reverso da sessao real e capturam tambem o cookie apos o segundo fator, o que derruba o 2FA por SMS ou codigo.",
+        "canCause": "Comprometimento de contas de e-mail, banco e do proprio console UniFi. Conta de e-mail tomada vira ponto de partida para redefinir a senha de todo o resto e para atacar seus contatos usando sua identidade.",
+        "stage": "Intrusao inicial / acesso a credenciais",
+        "mitre": [{"id": "T1566", "name": "Phishing", "tactic": "Initial Access"},
+                  {"id": "T1539", "name": "Steal Web Session Cookie", "tactic": "Credential Access"}],
+        "urgency": "Se alguem digitou a senha, troque agora e encerre as sessoes ativas - so trocar a senha nao expulsa quem ja tem o cookie.",
+    },
+    "Mineracao de criptomoedas": {
+        "how": "O minerador conecta a um pool usando o protocolo Stratum e recebe trabalho continuo, ocupando CPU ou GPU em 100%. Chega por malware, container comprometido ou script em pagina web. O IDS detecta pelo handshake do Stratum e pelos dominios conhecidos de pools.",
+        "canCause": "Conta de energia alta, desgaste termico do equipamento e lentidao geral. E sobretudo: se um minerador conseguiu rodar, o caminho de entrada continua aberto para algo pior - quem vende acesso a minerador tambem vende a operador de ransomware.",
+        "stage": "Impacto - sequestro de recursos",
+        "mitre": [{"id": "T1496", "name": "Resource Hijacking", "tactic": "Impact"}],
+        "urgency": "Trate como sinal de comprometimento, nao so como incomodo de desempenho.",
+    },
+    "Consulta DNS suspeita / Informativo": {
+        "how": "Antes de conectar, o malware resolve o nome do servidor de controle. Muitos usam DNS dinamico ou algoritmos que geram centenas de dominios por dia (DGA), de modo que derrubar um dominio nao mata o canal. Ha ainda o tunelamento: dados codificados dentro das proprias consultas DNS, que quase todo firewall libera.",
+        "canCause": "A consulta em si e inofensiva - ela denuncia a intencao. Se resolveu, provavelmente houve conexao em seguida. Tunel DNS permite exfiltrar dados de forma lenta e discreta, driblando controles que so olham HTTP.",
+        "stage": "Comando e controle - preparacao",
+        "mitre": [{"id": "T1071.004", "name": "Application Layer Protocol: DNS", "tactic": "Command and Control"},
+                  {"id": "T1568", "name": "Dynamic Resolution", "tactic": "Command and Control"}],
+        "urgency": "Verifique o dominio consultado antes de concluir.",
+        "falsePositive": "Muitos falsos positivos aqui sao servicos legitimos de DNS dinamico.",
+    },
+    "Adware / Spyware / Software indesejado": {
+        "how": "Programas instalados junto com outro software ('bundling') ou extensoes de navegador com permissao ampla de leitura de paginas. Coletam historico, formularios e as vezes teclas digitadas, enviando para servidores de publicidade ou corretores de dados.",
+        "canCause": "Vazamento de habitos, dados de formulario e eventualmente credenciais. Injecao de anuncios em paginas legitimas, que vira vetor para malware mais serio. Degradacao de desempenho do dispositivo.",
+        "stage": "Coleta de dados",
+        "mitre": [{"id": "T1176", "name": "Browser Extensions", "tactic": "Persistence"},
+                  {"id": "T1005", "name": "Data from Local System", "tactic": "Collection"}],
+        "urgency": "Baixa urgencia imediata, mas limpe: e sintoma de que algo instala software sem consentimento nesse dispositivo.",
+    },
+    "Ameaca em dispositivo movel": {
+        "how": "Aplicativo malicioso instalado fora da loja oficial, ou app legitimo com SDK de propaganda agressivo. Pede permissoes amplas (SMS, acessibilidade, sobreposicao de tela) e as usa para ler codigos de autenticacao ou sobrepor telas falsas de banco.",
+        "canCause": "Fraude bancaria com interceptacao do segundo fator por SMS, roubo de contatos e mensagens, e o celular virando ponto de entrada na rede WiFi de casa ou da empresa.",
+        "stage": "Intrusao inicial em endpoint movel",
+        "mitre": [{"id": "T1461", "name": "Lockscreen Bypass", "tactic": "Initial Access (Mobile)"},
+                  {"id": "T1417", "name": "Input Capture", "tactic": "Credential Access (Mobile)"}],
+        "urgency": "Revise apps instalados recentemente e permissoes de acessibilidade.",
+    },
+    "Protocolos industriais / IoT / VoIP": {
+        "how": "Protocolos como Modbus, BACnet e SIP foram desenhados sem autenticacao, assumindo rede confiavel. Quem alcanca a porta consegue ler e escrever comandos. Em VoIP o alvo tipico e o registro SIP: o atacante tenta ramais com senha fraca para originar chamadas as suas custas.",
+        "canCause": "Em IoT/OT, controle fisico indevido de equipamentos. Em VoIP, fraude tarifaria com chamadas internacionais. E dispositivos IoT comprometidos sao a porta de entrada classica para movimento lateral, porque ninguem monitora a camera.",
+        "stage": "Movimento lateral / acesso a OT",
+        "mitre": [{"id": "T1200", "name": "Hardware Additions", "tactic": "Initial Access"},
+                  {"id": "T0886", "name": "Remote Services (ICS)", "tactic": "Lateral Movement (ICS)"}],
+        "urgency": "Segmentar em VLAN isolada resolve a maior parte disso de uma vez.",
+    },
+    "Comunicacao com IP de ma reputacao": {
+        "how": "Nao ha analise de conteudo: a assinatura casa apenas o endereco IP contra listas publicas (Spamhaus DROP, DShield, CINS, nos de saida TOR). Sao listas de infraestrutura ja observada em atividade maliciosa por outros pesquisadores.",
+        "canCause": "Depende inteiramente da direcao. De fora para dentro e bloqueado: funcionamento normal, ruido de fundo da internet. De dentro para fora e o sinal importante - um dispositivo seu escolheu falar com infraestrutura marcada como maliciosa.",
+        "stage": "Varia conforme a direcao",
+        "mitre": [{"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control"}],
+        "urgency": "Saida iniciada de dentro merece investigacao. Entrada bloqueada nao exige acao.",
+        "falsePositive": "Alta chance de falso positivo: faixas de nuvem compartilhada (AWS, Azure, OVH) entram nas listas por causa de um vizinho e acabam marcando servicos legitimos.",
+    },
+    "Forca bruta / Acesso a servicos administrativos": {
+        "how": "Tentativas automatizadas de autenticacao contra SSH, RDP, SMB, FTP ou Telnet, usando listas de senhas vazadas em incidentes anteriores. A variante mais dificil de detectar e o 'password spraying': poucas tentativas por conta, mas contra muitas contas, para nao disparar bloqueio por tentativas.",
+        "canCause": "Acesso administrativo direto ao dispositivo. RDP exposto e hoje um dos principais vetores iniciais de ransomware: o invasor entra com credencial valida, entao nenhum antivirus reclama, e a partir dai cifra o que alcanca.",
+        "stage": "Acesso a credenciais",
+        "mitre": [{"id": "T1110", "name": "Brute Force", "tactic": "Credential Access"},
+                  {"id": "T1021", "name": "Remote Services", "tactic": "Lateral Movement"},
+                  {"id": "T1133", "name": "External Remote Services", "tactic": "Initial Access"}],
+        "urgency": "Se o servico esta exposto na internet, tire da WAN hoje e coloque atras de VPN. Nao ha senha forte o bastante para compensar exposicao permanente.",
+    },
+    "Assinatura de seguranca generica": {
+        "how": "O pacote casou com uma regra do conjunto Emerging Threats que nao se encaixa nas categorias mapeadas acima. Regras variam muito em precisao: algumas identificam uma familia especifica de malware, outras apenas sinalizam um padrao incomum que merece atencao.",
+        "canCause": "Indeterminado sem analise do caso. Vale olhar a assinatura exata e a direcao do trafego antes de concluir qualquer coisa.",
+        "stage": "Indeterminado",
+        "mitre": [],
+        "urgency": "Pesquise o nome exato da assinatura. Se repete sempre com o mesmo dispositivo interno, investigue esse dispositivo.",
+        "falsePositive": "Sem contexto adicional, assuma que pode ser falso positivo ate confirmar.",
+    },
+}
+
+# Grupos de regras do Emerging Threats, para explicar de onde a deteccao veio.
+ET_CATEGORY_INFO: dict[str, str] = {
+    "emerging-malware": "Malware conhecido: beacons, downloaders e trafego de familias catalogadas.",
+    "emerging-trojan": "Trojans e backdoors - foco em canal de controle e exfiltracao.",
+    "emerging-botcc": "Servidores de comando e controle de botnets, alimentado por inteligencia de ameacas.",
+    "botcc": "Comando e controle de botnets (Shadowserver e fontes equivalentes).",
+    "emerging-exploit": "Exploracao de vulnerabilidades especificas, geralmente com CVE associada.",
+    "emerging-scan": "Ferramentas de varredura e reconhecimento (nmap, masscan, scanners de aplicacao).",
+    "emerging-dos": "Padroes de negacao de servico e amplificacao.",
+    "emerging-policy": "Trafego que viola politica corporativa tipica, sem ser malicioso por si.",
+    "emerging-phishing": "Paginas e campanhas de roubo de credenciais.",
+    "emerging-coinminer": "Mineracao de criptomoedas, pools e protocolo Stratum.",
+    "emerging-user_agents": "User-Agents associados a ferramentas maliciosas ou software indesejado.",
+    "emerging-attackresponse": "Respostas que indicam ataque bem-sucedido (ex.: saida de comando shell).",
+    "emerging-shellcode": "Shellcode e padroes de execucao de codigo em memoria.",
+    "emerging-webserver": "Ataques contra servidores web.",
+    "emerging-web_specific_apps": "Falhas em aplicacoes web especificas (CMS, plugins, paineis).",
+    "emerging-dshield": "IPs reportados ao DShield/SANS como atacantes ativos.",
+    "dshield": "Lista de atacantes do DShield/SANS.",
+    "ciarmy": "Lista CINS Army de IPs com reputacao ruim.",
+    "compromised": "Hosts legitimos ja comprometidos e usados em ataques.",
+    "drop": "Spamhaus DROP: faixas sequestradas ou controladas por criminosos.",
+    "tor": "Nos de entrada e saida da rede TOR.",
+    "emerging-mobile_malware": "Malware para Android e iOS.",
+    "emerging-current_events": "Campanhas ativas no momento - regras de vida curta, alta relevancia.",
+    "emerging-hunting": "Regras de cacada: geram muito ruido de proposito, para investigacao.",
+    "emerging-info": "Informativas: registram comportamento notavel sem afirmar que e ataque.",
+}
+
 SEVERITY_MAP = {1: ("alto", "Alta"), 2: ("medio", "Media"), 3: ("baixo", "Baixa"), 4: ("baixo", "Informativa")}
 RISK_ORDER = {"critico": 4, "alto": 3, "medio": 2, "baixo": 1}
 
@@ -271,6 +420,10 @@ def explain_event(ev: dict, clients_by_ip: dict[str, dict] | None = None) -> dic
     m = re.search(r"CVE-\d{4}-\d+", sig, re.IGNORECASE)
     cve = m.group(0).upper() if m else None
 
+    detail = CATEGORY_DETAIL.get(info["title"], {})
+    et_group = (catname or "").lower().strip()
+    sid = ev.get("inner_alert_signature_id") or ev.get("signature_id")
+
     return {
         "id": ev.get("_id") or ev.get("id"),
         "time": ev.get("time") or ev.get("timestamp"),
@@ -302,6 +455,16 @@ def explain_event(ev: dict, clients_by_ip: dict[str, dict] | None = None) -> dic
         "cveUrl": f"https://nvd.nist.gov/vuln/detail/{cve}" if cve else None,
         "summary": " ".join(summary_parts),
         "steps": steps,
+        # aprofundamento tecnico
+        "how": detail.get("how"),
+        "canCause": detail.get("canCause"),
+        "stage": detail.get("stage"),
+        "mitre": detail.get("mitre", []),
+        "urgency": detail.get("urgency"),
+        "falsePositive": detail.get("falsePositive"),
+        "etGroup": et_group or None,
+        "etGroupInfo": ET_CATEGORY_INFO.get(et_group),
+        "sidUrl": f"https://www.google.com/search?q=%22{sid}%22+suricata+signature" if sid else None,
         "raw": ev,
     }
 

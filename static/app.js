@@ -7,6 +7,7 @@ const state = { view: 'overview', cache: {}, charts: [] };
 const TITLES = {
   overview: 'Visão geral', threats: 'Ameaças detectadas (IDS/IPS)', audit: 'Auditoria e configuração guiada de segurança',
   firewall: 'Firewall, zonas e políticas', networks: 'Redes e WiFi', clients: 'Clientes conectados', devices: 'Dispositivos UniFi',
+  traffic: 'Navegação: aplicações, categorias e destinos acessados', validation: 'Validação autorizada do IDS/IPS e do firewall',
   logs: 'Logs de eventos e alarmes', vpn: 'VPN, WAN e DNS', continuity: 'Continuidade: DNS do Active Directory e failover de WAN',
   explorer: 'Explorador da API', settings: 'Configurações',
 };
@@ -172,9 +173,17 @@ window.showThreat = i => {
       ${e.internalDevice ? `<b>Dispositivo interno</b><span>${esc(e.internalDevice.name || 'desconhecido')} · ${e.internalDevice.ip} ${e.internalDevice.mac ? '· ' + e.internalDevice.mac : ''}</span>` : ''}
       ${e.cve ? `<b>CVE</b><span><a href="${e.cveUrl}" target="_blank">${e.cve}</a></span>` : ''}
     </div>
+    ${e.stage ? `<div class="kv"><b>Etapa do ataque</b><span>${esc(e.stage)}</span>${e.etGroup ? `<b>Grupo de regras</b><span class="mono">${esc(e.etGroup)}</span>` : ''}</div>` : ''}
+    ${e.etGroupInfo ? `<p class="small muted">${esc(e.etGroupInfo)}</p>` : ''}
     <h4>O que é</h4><p>${esc(e.what)}</p>
+    ${e.how ? `<h4>Como funciona</h4><p>${esc(e.how)}</p>` : ''}
     <h4>O que isso significa para você</h4><p>${esc(e.means)}</p>
+    ${e.canCause ? `<h4>O que pode causar</h4><p>${esc(e.canCause)}</p>` : ''}
+    ${e.urgency ? `<div class="help" style="margin:10px 0"><b>Urgência:</b> ${esc(e.urgency)}</div>` : ''}
+    ${e.falsePositive ? `<div class="small muted"><b>Sobre falso positivo:</b> ${esc(e.falsePositive)}</div>` : ''}
+    ${(e.mitre || []).length ? `<h4>MITRE ATT&CK</h4><table>${e.mitre.map(m => `<tr><td class="mono"><a href="https://attack.mitre.org/techniques/${esc(m.id).replace('.', '/')}/" target="_blank">${esc(m.id)}</a></td><td>${esc(m.name)}</td><td class="small muted">${esc(m.tactic)}</td></tr>`).join('')}</table>` : ''}
     <h4>O que fazer</h4><ol class="steps">${e.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    ${e.sidUrl ? `<p class="small"><a href="${esc(e.sidUrl)}" target="_blank">Pesquisar esta assinatura (SID) na web →</a></p>` : ''}
     ${e.internalDevice && e.internalDevice.mac ? `<button class="btn danger" onclick="blockClient('${e.internalDevice.mac}', '${esc(e.internalDevice.name || e.internalDevice.ip)}')">Bloquear este dispositivo da rede</button>` : ''}
     <details class="mt"><summary class="muted small">Evento bruto (JSON)</summary><pre>${esc(JSON.stringify(e.raw, null, 2))}</pre></details>`);
 };
@@ -382,6 +391,132 @@ VIEWS.vpn = async (force) => {
     <div><b>Gateway</b><div class="kv mt"><b>UPnP</b><span>${sec.usg?.upnp_enabled ? tag('ATIVO', 'alto') : tag('off', 'ok')}</span><b>GeoIP</b><span>${sec.usg?.geo_ip_filtering_enabled ? 'ativo (' + esc(sec.usg?.geo_ip_filtering_block || '') + ')' : 'off'}</span><b>Log WAN</b><span>${sec.usg?.firewall_wan_default_log ? 'sim' : 'não'}</span><b>Log LAN</b><span>${sec.usg?.firewall_lan_default_log ? 'sim' : 'não'}</span><b>mDNS</b><span>${sec.usg?.mdns_enabled ? 'sim' : 'não'}</span><b>DPI</b><span>${sec.dpi?.enabled ? 'sim' : 'não'}</span></div></div>
     <div><b>Gestão</b><div class="kv mt"><b>SSH</b><span>${sec.mgmt?.x_ssh_enabled ? tag('ativo', 'baixo') : 'off'}</span><b>Auto-update</b><span>${sec.mgmt?.auto_upgrade ? 'sim' : 'não'}</span><b>LED</b><span>${sec.mgmt?.led_enabled ? 'on' : 'off'}</span></div></div>
   </div><details class="mt"><summary class="small muted">JSON completo</summary><pre>${esc(JSON.stringify(sec, null, 2))}</pre></details></div>` : ''}`;
+};
+
+// --------------------------------------------------- navegação e tráfego
+VIEWS.traffic = async (force) => {
+  const days = state.destDays || 7;
+  const [t, d, s] = await Promise.all([
+    load('traffic', '/api/traffic?top=25', force),
+    load('dest' + days, `/api/destinations?days=${days}`, force),
+    load('sessions', '/api/sessions?hours=24', force).catch(() => ({ available: false })),
+  ]);
+  const RISKC = { critico: 'critico', alto: 'alto', medio: 'medio', baixo: 'baixo' };
+  view.innerHTML = `
+  <div class="help">O UniFi <b>não guarda histórico de URLs visitadas</b> — isso não existe na API e nenhum painel consegue extrair.
+  O que existe é a classificação por <b>DPI</b> (qual aplicação/categoria consumiu banda) e os <b>destinos concretos</b> que
+  apareceram em eventos do IPS. É o mais próximo de "sites acessados" que o equipamento realmente entrega.</div>
+
+  ${!t.available ? `<div class="alert info mt">${esc(t.reason)}</div>` :
+    !t.dpiEnabled ? `<div class="alert info mt">${esc(t.hint || 'Sem dados de DPI.')}</div>` : `
+  <div class="grid g2 mt">
+    <div class="card"><h3>Aplicações mais acessadas</h3>
+      <table><tr><th>Aplicação</th><th>Categoria</th><th>Total</th><th>↓ / ↑</th><th>Clientes</th></tr>
+      ${t.byApp.map(a => `<tr><td><b>${esc(a.app)}</b></td><td class="small muted">${esc(a.category)}</td>
+        <td>${fmtBytes(a.totalBytes)}</td><td class="small muted">${fmtBytes(a.rxBytes)} / ${fmtBytes(a.txBytes)}</td>
+        <td class="small">${a.clients ?? '-'}</td></tr>`).join('')}</table></div>
+    <div class="card"><h3>Categorias</h3><div class="canvas-wrap"><canvas id="chCat"></canvas></div>
+      <table class="mt">${t.byCategory.map(c => `<tr><td>${esc(c.category)}</td><td>${fmtBytes(c.totalBytes)}</td></tr>`).join('')}</table></div>
+  </div>
+  <div class="card mt"><h3>Por dispositivo</h3><div class="tbl"><table><tr><th>Dispositivo</th><th>MAC</th><th>Total</th><th>Principais aplicações</th></tr>
+    ${t.byClient.map(c => `<tr><td><b>${esc(c.name)}</b></td><td class="mono small muted">${esc(c.mac)}</td><td>${fmtBytes(c.totalBytes)}</td>
+      <td class="small">${c.topApps.map(a => `${esc(a.app)} <span class="muted">(${fmtBytes(a.totalBytes)})</span>`).join(' · ')}</td></tr>`).join('')}</table></div></div>`}
+
+  <div class="card mt"><h3>Destinos externos vistos pelo IPS</h3>
+    <div class="toolbar"><label style="margin:0">Período</label><select id="destDays">${[1, 3, 7, 14, 30].map(x => `<option value="${x}" ${x === days ? 'selected' : ''}>${x} dia(s)</option>`).join('')}</select>
+      <span class="small muted">${d.available ? d.total + ' destinos distintos' : ''}</span></div>
+    ${d.available ? `<div class="tbl"><table><tr><th>IP</th><th>País</th><th>Risco</th><th>Eventos</th><th>Bloqueados</th><th>Tipos</th></tr>
+      ${d.destinations.map(x => `<tr><td class="mono">${esc(x.ip)}</td><td class="small">${esc(x.country || '-')}</td>
+        <td>${tag(RISK_LABEL[x.maxRisk], RISKC[x.maxRisk])}</td><td>${x.count}</td><td class="small">${x.blocked}</td>
+        <td class="small muted">${x.types.map(esc).join(', ')}</td></tr>`).join('')}</table></div>`
+      : `<div class="alert info">${esc(d.reason)}</div>`}</div>
+
+  <div class="card mt"><h3>Sessões de clientes (24h)</h3>
+    ${s.available ? `<div class="tbl" style="max-height:360px"><table><tr><th>Dispositivo</th><th>IP</th><th>Início</th><th>Duração</th><th>↓ / ↑</th><th>Rede</th></tr>
+      ${s.sessions.map(x => `<tr><td><b>${esc(x.name)}</b><div class="mono small muted">${esc(x.mac || '')}</div></td><td class="mono small">${esc(x.ip || '-')}</td>
+        <td class="small muted">${fmtDate(x.start)}</td><td class="small">${fmtUptime(x.durationSec)}</td>
+        <td class="small">${fmtBytes(x.rxBytes)} / ${fmtBytes(x.txBytes)}</td><td class="small muted">${esc(x.network || '-')}</td></tr>`).join('')}</table></div>`
+      : `<div class="alert info">${esc(s.reason || 'Indisponível.')}</div>`}</div>`;
+
+  $('#destDays').addEventListener('change', e => { state.destDays = Number(e.target.value); render(); });
+  if (t.available && t.byCategory && t.byCategory.length)
+    chart($('#chCat'), { type: 'doughnut', data: { labels: t.byCategory.map(c => c.category), datasets: [{ data: t.byCategory.map(c => c.totalBytes), backgroundColor: PALETTE }] }, options: { maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#8b98a9' } } } } });
+};
+
+// ------------------------------------------------------ validação IDS/IPS
+VIEWS.validation = async (force) => {
+  const v = await load('valTests', '/api/validation/tests', force);
+  state.valTests = v.tests;
+  view.innerHTML = `
+  <div class="help"><b>Para que serve:</b> um IPS mal configurado é visualmente idêntico a um IPS funcionando — a diferença só
+  aparece durante um incidente real. Estes testes geram tráfego que <b>casa com assinaturas conhecidas do Suricata</b>, sem
+  nenhum payload capaz de causar dano, e depois releem os eventos do IPS para provar se ele detectou.</div>
+
+  <div class="alert mt"><b>Uso autorizado apenas.</b> Execute somente contra equipamento seu ou com autorização escrita do dono.
+  A varredura é restrita por código a IPs privados que pertençam às redes deste site — alvos públicos são recusados.</div>
+
+  <div class="card mt"><h3>Testes disponíveis</h3>
+    ${v.tests.map(t => `<details class="finding"><summary><input type="checkbox" class="valChk" value="${esc(t.id)}" ${t.optIn ? '' : 'checked'} onclick="event.stopPropagation()">
+      <b>${esc(t.name)}</b> ${t.optIn ? tag('opcional', 'info') : ''} <span class="muted small" style="margin-left:auto">${esc(t.category)}</span></summary>
+      <div class="body">
+        <div><b>O que envia:</b> ${esc(t.sends)}</div>
+        <div><b>Por que valida algo:</b> ${esc(t.why)}</div>
+        <div><b>Assinatura esperada:</b> <span class="mono small">${esc(t.expects)}</span></div>
+        <div><b>Risco do teste:</b> ${esc(t.harm)}</div>
+      </div></details>`).join('')}
+    <div class="form-row mt">
+      <div class="field"><label>Alvo da varredura (deve estar na sua rede)</label>
+        <input id="valTarget" value="${esc((v.targets.gateways || [])[0] || '')}" placeholder="192.168.1.1">
+        <div class="small muted">Aceitos: ${(v.targets.gateways || []).map(esc).join(', ') || 'nenhum detectado'}${(v.targets.subnets || []).length ? ' · sub-redes ' + v.targets.subnets.map(esc).join(', ') : ''}</div></div>
+    </div>
+    <label class="mt" style="display:block"><input type="checkbox" id="valAuth"> <b>Confirmo que este equipamento é meu ou tenho autorização escrita do proprietário para testá-lo.</b></label>
+    <button class="btn primary mt" onclick="valRun()">Executar validação</button>
+    <button class="btn mt" id="valCorr" onclick="valCorrelate()" disabled>Verificar detecções</button>
+  </div>
+  <div id="valOut" class="mt"></div>`;
+};
+
+window.valRun = async () => {
+  const tests = $$('.valChk:checked').map(c => c.value);
+  if (!tests.length) return showAlert('Selecione ao menos um teste.');
+  if (!$('#valAuth').checked) return showAlert('Marque a confirmação de autorização antes de executar.');
+  const out = $('#valOut'); out.innerHTML = '<div class="spinner">Executando testes…</div>';
+  try {
+    const r = await api('/api/validation/run', { method: 'POST', body: { authorized: true, tests, target: $('#valTarget').value.trim() } });
+    state.valRun = { startedAt: r.startedAt, tests };
+    $('#valCorr').disabled = false;
+    out.innerHTML = `<div class="card"><h3>Tráfego gerado</h3>
+      <table><tr><th>Teste</th><th>Resultado</th></tr>
+      ${r.results.map(x => { const e = x.executed; return `<tr><td><b>${esc(x.name)}</b><div class="small muted">${esc(x.expects)}</div></td>
+        <td class="small">${e.reached === false ? `<span style="color:var(--warn)">não alcançou: ${esc(e.error || '')}</span>`
+          : e.open !== undefined ? `alvo ${esc(e.target)} · <b>${e.open.length}</b> porta(s) abertas: <span class="mono">${e.open.join(', ') || '—'}</span><div class="muted">fechadas ${e.closed.length} · filtradas ${e.filtered.length} · varridas ${e.scanned.length}</div>`
+          : e.resolved ? `resolveu para <span class="mono">${e.resolved.map(esc).join(', ')}</span>`
+          : `HTTP ${e.status} · ${e.bytes} bytes`}</td></tr>`; }).join('')}</table>
+      <div class="small muted mt">${esc(r.note)}</div></div>`;
+  } catch (e) { out.innerHTML = `<div class="alert">${esc(e.message)}</div>`; }
+};
+
+window.valCorrelate = async () => {
+  if (!state.valRun) return;
+  const out = $('#valOut');
+  out.insertAdjacentHTML('beforeend', '<div class="spinner" id="valWait">Lendo eventos do IPS…</div>');
+  try {
+    const r = await api('/api/validation/correlate', { method: 'POST', body: state.valRun });
+    $('#valWait')?.remove();
+    if (!r.available) { out.insertAdjacentHTML('beforeend', `<div class="alert info">${esc(r.reason)}</div>`); return; }
+    const ok = r.detected === r.total;
+    out.insertAdjacentHTML('beforeend', `<div class="card mt"><h3>Veredito do IPS</h3>
+      <div class="alert ${ok ? 'ok' : ''}">${esc(r.verdict)}</div>
+      <div class="grid g3 mt">
+        <div class="card"><h3>Detectados</h3><div class="kpi" style="color:var(--ok)">${r.detected}/${r.total}</div></div>
+        <div class="card"><h3>Bloqueados</h3><div class="kpi">${r.blockedCount}</div><small class="muted">detectar sem bloquear = modo Notificar</small></div>
+        <div class="card"><h3>Eventos na janela</h3><div class="kpi">${r.eventsInWindow}</div></div>
+      </div>
+      <table class="mt"><tr><th>Teste</th><th>Detectou?</th><th>Assinatura casada</th></tr>
+      ${Object.entries(r.byTest).map(([k, t]) => `<tr><td><b>${esc(t.name)}</b><div class="small muted">esperado: ${esc(t.expects)}</div></td>
+        <td>${t.detected ? tag('sim', 'ok') : tag('não', 'alto')}</td>
+        <td class="small mono">${t.hits.map(h => esc(h.signature) + (h.blocked ? ' ' : ' (só detectado)')).join('<br>') || '—'}</td></tr>`).join('')}</table></div>`);
+  } catch (e) { $('#valWait')?.remove(); out.insertAdjacentHTML('beforeend', `<div class="alert">${esc(e.message)}</div>`); }
 };
 
 // ----------------------------------------------------------- continuidade

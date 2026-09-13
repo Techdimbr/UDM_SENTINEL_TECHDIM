@@ -280,7 +280,40 @@ def sim_failover():
     return {"ok": True, "from": cur["name"], "to": nxt["name"], "activeWanIp": nxt["ipv4"]["ipAddress"]}
 
 
-for path in ["/sites/{s}/acl-rules", "/sites/{s}/dns/policies", "/sites/{s}/vpn/site-to-site-tunnels", "/sites/{s}/traffic-matching-lists", "/sites/{s}/hotspot/vouchers", "/sites/{s}/dpi/categories"]:
+# DPI: o id de aplicacao real do UniFi e composto -> (categoria << 16) | aplicacao.
+DPI_CATS = [{"id": 4, "name": "Web"}, {"id": 13, "name": "Streaming Media"}, {"id": 18, "name": "Social Networks"}]
+DPI_APPS = [{"id": 1, "name": "HTTP"}, {"id": 2, "name": "Facebook"}, {"id": 5, "name": "Netflix"}, {"id": 7, "name": "YouTube"}]
+SITE_DPI_APP = [
+    {"app": (13 << 16) | 7, "cat": 13, "rx_bytes": 48_000_000_000, "tx_bytes": 900_000_000, "clients": 4},
+    {"app": (13 << 16) | 5, "cat": 13, "rx_bytes": 22_000_000_000, "tx_bytes": 400_000_000, "clients": 2},
+    {"app": (18 << 16) | 2, "cat": 18, "rx_bytes": 6_500_000_000, "tx_bytes": 1_200_000_000, "clients": 3},
+    {"app": (4 << 16) | 1, "cat": 4, "rx_bytes": 3_100_000_000, "tx_bytes": 800_000_000, "clients": 5},
+]
+SITE_DPI_CAT = [
+    {"cat": 13, "rx_bytes": 70_000_000_000, "tx_bytes": 1_300_000_000},
+    {"cat": 18, "rx_bytes": 6_500_000_000, "tx_bytes": 1_200_000_000},
+    {"cat": 4, "rx_bytes": 3_100_000_000, "tx_bytes": 800_000_000},
+]
+SESSIONS = [
+    {"mac": "11:22:33:44:55:01", "hostname": "pc-joao", "ip": "192.168.1.50", "assoc_time": NOW // 1000 - 7200,
+     "duration": 7100, "rx_bytes": 5_400_000_000, "tx_bytes": 300_000_000, "network": "Default"},
+    {"mac": "11:22:33:44:55:03", "hostname": "iphone", "ip": "192.168.1.77", "assoc_time": NOW // 1000 - 3600,
+     "duration": 3500, "rx_bytes": 900_000_000, "tx_bytes": 120_000_000, "essid": "Casa"},
+]
+ANOMALIES = [{"time": NOW - 600_000, "mac": "11:22:33:44:55:02", "anomaly": "dns_flood"}]
+
+
+@mock.get(I + "/dpi/categories")
+def dpi_cats(x_api_key: str | None = Header(None)):
+    auth(x_api_key); return page(DPI_CATS)
+
+
+@mock.get(I + "/dpi/applications")
+def dpi_apps(x_api_key: str | None = Header(None)):
+    auth(x_api_key); return page(DPI_APPS)
+
+
+for path in ["/sites/{s}/acl-rules", "/sites/{s}/dns/policies", "/sites/{s}/vpn/site-to-site-tunnels", "/sites/{s}/traffic-matching-lists", "/sites/{s}/hotspot/vouchers"]:
     def _mk(path=path):
         def h(s: str, x_api_key: str | None = Header(None)):
             auth(x_api_key); return page([])
@@ -362,6 +395,33 @@ async def set_setting(key: str, req: Request, sid: str | None = None, x_api_key:
 @mock.post(C + "/cmd/stamgr")
 async def stamgr(req: Request, x_api_key: str | None = Header(None)):
     auth(x_api_key); return cwrap([await req.json()])
+
+
+@mock.post(C + "/stat/sitedpi")
+async def sitedpi(req: Request, x_api_key: str | None = Header(None)):
+    auth(x_api_key); body = await req.json()
+    if body.get("type") == "by_cat":
+        return cwrap([{"by_cat": SITE_DPI_CAT}])
+    return cwrap([{"by_app": SITE_DPI_APP}])
+
+
+@mock.post(C + "/stat/stadpi")
+async def stadpi(req: Request, x_api_key: str | None = Header(None)):
+    auth(x_api_key)
+    return cwrap([
+        {"mac": "11:22:33:44:55:01", "by_app": SITE_DPI_APP[:2]},
+        {"mac": "11:22:33:44:55:03", "by_app": SITE_DPI_APP[2:]},
+    ])
+
+
+@mock.post(C + "/stat/session")
+async def sessions_ep(req: Request, x_api_key: str | None = Header(None)):
+    auth(x_api_key); return cwrap(SESSIONS)
+
+
+@mock.get(C + "/stat/anomalies")
+def anomalies_ep(x_api_key: str | None = Header(None)):
+    auth(x_api_key); return cwrap(ANOMALIES)
 
 
 @mock.get(C + "/rest/networkconf")

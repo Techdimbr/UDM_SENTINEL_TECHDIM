@@ -273,6 +273,14 @@ class UniFiClient:
         self._cache.set("dpi_cat", v)
         return v
 
+    def dpi_applications(self) -> list[dict]:
+        cached = self._cache.get("dpi_app", 3600)
+        if cached:
+            return cached
+        v = self.paged("/v1/dpi/applications")
+        self._cache.set("dpi_app", v)
+        return v
+
     def vouchers(self) -> list[dict]:
         return self.paged(self.sp("/hotspot/vouchers"))
 
@@ -340,6 +348,25 @@ class UniFiClient:
             "_sort": "-time",
         }
         return self.classic("POST", "/stat/ips/event", json=body) or []
+
+    def site_dpi(self, by: str = "by_app") -> list[dict]:
+        """Estatisticas de DPI agregadas do site. `by` = by_app | by_cat."""
+        return self.classic("POST", "/stat/sitedpi", json={"type": by}) or []
+
+    def client_dpi(self, by: str = "by_app", macs: list[str] | None = None) -> list[dict]:
+        body: dict[str, Any] = {"type": by}
+        if macs:
+            body["macs"] = [m.lower() for m in macs]
+        return self.classic("POST", "/stat/stadpi", json=body) or []
+
+    def sessions(self, limit: int = 500, within_hours: int = 24) -> list[dict]:
+        """Historico de sessoes de clientes (conexao/desconexao, bytes, duracao)."""
+        now = int(time.time())
+        return self.classic("POST", "/stat/session", json={"type": "all", "start": now - within_hours * 3600, "end": now, "_limit": limit}) or []
+
+    def anomalies(self, within_hours: int = 24) -> list[dict]:
+        now = int(time.time() * 1000)
+        return self.classic("GET", "/stat/anomalies", params={"start": now - within_hours * 3600 * 1000, "end": now}) or []
 
     def settings(self) -> list[dict]:
         return self.classic("GET", "/rest/setting") or []

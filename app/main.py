@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .audit import SecurityAudit, apply_fix, build_block_policy
+from .insights import anomalies, external_destinations, session_history, traffic_overview
 from .orchestrator import (
     FailoverMonitor,
     apply_ad_dns_plan,
@@ -25,6 +26,8 @@ from .orchestrator import (
 )
 from .threats import ALARM_HINTS, explain_event, explain_system_event, summarize
 from .unifi_client import UniFiClient, UniFiConfig, UniFiError
+from .validation import TESTS as VALIDATION_TESTS
+from .validation import NotAuthorized, UnsafeTarget, correlate, owned_targets, run_validation
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "static"
@@ -493,6 +496,60 @@ def continuity_monitor(body: dict = Body(...)):
 @app.post("/api/continuity/monitor/poll")
 def continuity_monitor_poll():
     return {"poll": monitor.poll(), "status": monitor.status()}
+
+
+# ------------------------------------------------------------- navegacao
+@app.get("/api/traffic")
+def traffic(top: int = Query(25, le=200)):
+    """Aplicacoes e categorias acessadas (DPI)."""
+    return traffic_overview(client(), top)
+
+
+@app.get("/api/destinations")
+def destinations(days: int = Query(7, le=90), top: int = Query(40, le=200)):
+    """Destinos externos concretos vistos nos eventos do IPS."""
+    return external_destinations(client(), days, top)
+
+
+@app.get("/api/sessions")
+def sessions(hours: int = Query(24, le=24 * 30), limit: int = Query(300, le=2000)):
+    return session_history(client(), hours, limit)
+
+
+@app.get("/api/anomalies")
+def anomalies_route(hours: int = Query(24, le=24 * 30)):
+    return anomalies(client(), hours)
+
+
+# ------------------------------------------------------- validacao IDS/IPS
+@app.exception_handler(NotAuthorized)
+async def not_authorized_handler(_, exc: NotAuthorized):
+    return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+
+@app.exception_handler(UnsafeTarget)
+async def unsafe_target_handler(_, exc: UnsafeTarget):
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.get("/api/validation/tests")
+def validation_tests():
+    """Catalogo dos testes e quais alvos sao aceitos nesta rede."""
+    return {"tests": [{k: v for k, v in t.items() if k != "match"} for t in VALIDATION_TESTS],
+            "targets": owned_targets(client())}
+
+
+@app.post("/api/validation/run")
+def validation_run(body: dict = Body(...)):
+    return run_validation(client(), body)
+
+
+@app.post("/api/validation/correlate")
+def validation_correlate(body: dict = Body(...)):
+    started = body.get("startedAt")
+    if not started:
+        raise HTTPException(400, "startedAt obrigatorio")
+    return correlate(client(), int(started), body.get("tests") or [])
 
 
 # ------------------------------------------------------------ raw explorer

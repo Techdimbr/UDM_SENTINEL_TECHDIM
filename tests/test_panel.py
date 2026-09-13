@@ -294,3 +294,83 @@ def test_continuity_endpoints(api, restore_mock):
 
     applied = api.post("/api/continuity/dns-ad/apply", json={}).json()
     assert applied["resolved"] is True
+
+
+# ------------------------------------------------ navegacao e DPI
+def test_traffic_resolves_dpi_names(api):
+    t = api.get("/api/traffic").json()
+    assert t["available"] is True and t["dpiEnabled"] is True
+    # o id composto (categoria << 16 | app) precisa virar nome legivel
+    assert t["byApp"][0]["app"] == "YouTube"
+    assert t["byApp"][0]["category"] == "Streaming Media"
+    assert t["byCategory"][0]["category"] == "Streaming Media"
+    assert t["byClient"][0]["name"] == "PC-Joao"
+
+
+def test_external_destinations_rank_by_risk(api):
+    d = api.get("/api/destinations").json()
+    assert d["available"] is True
+    assert d["destinations"][0]["maxRisk"] == "critico"
+    assert all(not x["ip"].startswith("192.168.") for x in d["destinations"])
+
+
+def test_sessions_and_anomalies(api):
+    s = api.get("/api/sessions").json()
+    assert s["available"] is True and s["sessions"][0]["name"] == "iphone"
+    assert api.get("/api/anomalies").json()["items"][0]["anomaly"] == "dns_flood"
+
+
+def test_threat_detail_is_enriched(api):
+    t = api.get("/api/threats").json()
+    ev = next(e for e in t["events"] if e["title"].startswith("Malware"))
+    assert "beacon" in ev["how"]
+    assert ev["canCause"] and ev["stage"] and ev["urgency"]
+    assert [m["id"] for m in ev["mitre"]] == ["T1071", "T1571", "T1105"]
+    assert ev["etGroupInfo"]
+
+
+# ------------------------------------------- validacao autorizada IDS/IPS
+def test_validation_refuses_without_authorization(api):
+    r = api.post("/api/validation/run", json={"tests": ["port_scan"]})
+    assert r.status_code == 403
+    assert "autoriza" in r.json()["detail"].lower()
+
+
+def test_validation_refuses_public_target(api):
+    r = api.post("/api/validation/run", json={"authorized": True, "tests": ["port_scan"], "target": "8.8.8.8"})
+    assert r.status_code == 400
+    assert "publico" in r.json()["detail"].lower()
+
+
+def test_validation_refuses_private_ip_outside_this_site(api):
+    r = api.post("/api/validation/run", json={"authorized": True, "tests": ["port_scan"], "target": "10.99.99.1"})
+    assert r.status_code == 400
+    assert "nao pertence" in r.json()["detail"].lower()
+
+
+def test_validation_scan_runs_against_own_gateway(api):
+    from app.validation import MAX_PORTS
+    r = api.post("/api/validation/run", json={"authorized": True, "tests": ["port_scan"],
+                                              "target": "192.168.1.1", "ports": list(range(9000, 9040))})
+    assert r.status_code == 200
+    out = r.json()["results"][0]["executed"]
+    # a trava de quantidade precisa cortar a lista, independente do que foi pedido
+    assert len(out["scanned"]) == MAX_PORTS
+
+
+def test_validation_catalog_lists_owned_targets(api):
+    v = api.get("/api/validation/tests").json()
+    assert {t["id"] for t in v["tests"]} >= {"attack_response", "port_scan", "eicar"}
+    assert all("match" not in t for t in v["tests"])
+    assert "192.168.1.1" in v["targets"]["gateways"]
+
+
+def test_validation_correlates_ips_events(api):
+    import time
+    started = int(time.time() * 1000) - 60_000
+    r = api.post("/api/validation/correlate", json={"startedAt": started, "tests": ["port_scan", "attack_response"]}).json()
+    assert r["available"] is True
+    # o mock tem um ET SCAN, entao a varredura casa e a resposta de ataque nao
+    assert r["byTest"]["port_scan"]["detected"] is True
+    assert r["byTest"]["attack_response"]["detected"] is False
+    assert r["detected"] == 1 and r["total"] == 2
