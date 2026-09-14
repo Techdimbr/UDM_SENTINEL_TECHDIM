@@ -1,0 +1,10 @@
+[tool.ruff]
+line-length = 200
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = ["B", "SIM", "I", "UP"]
+ignore = ["B008"]  # FastAPI Body(...)/Query(...) em defaults e o padrao do framework
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

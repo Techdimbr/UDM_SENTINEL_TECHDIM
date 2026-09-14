@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel UniFi de Segurança</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">U</span><div><b>Painel UniFi</b><small>Segurança &amp; Rede</small></div></div>
+    <nav id="nav">
+      <a data-view="overview" class="active">Visão geral</a>
+      <a data-view="threats">Ameaças (IPS)</a>
+      <a data-view="audit">Auditoria guiada</a>
+      <a data-view="firewall">Firewall &amp; Zonas</a>
+      <a data-view="networks">Redes &amp; WiFi</a>
+      <a data-view="clients">Clientes</a>
+      <a data-view="traffic">Navegação &amp; Tráfego</a>
+      <a data-view="validation">Validar IDS/IPS</a>
+      <a data-view="devices">Dispositivos UniFi</a>
+      <a data-view="logs">Logs &amp; Alarmes</a>
+      <a data-view="vpn">VPN, WAN &amp; DNS</a>
+      <a data-view="continuity">Continuidade (AD &amp; WAN)</a>
+      <a data-view="explorer">Explorador da API</a>
+      <a data-view="settings">Configurações</a>
+    </nav>
+    <div class="conn" id="conn"><span class="dot"></span><span id="connText">Não conectado</span></div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <h1 id="viewTitle">Visão geral</h1>
+      <div class="actions">
+        <span id="siteBadge" class="badge"></span>
+        <button id="refreshBtn" class="btn">Atualizar</button>
+      </div>
+    </header>
+    <div id="alert" class="alert hidden"></div>
+    <section id="view" class="view"></section>
+  </main>
+</div>
+<div id="modal" class="modal hidden"><div class="modal-card"><div class="modal-head"><h3 id="modalTitle"></h3><button class="btn ghost" onclick="closeModal()">✕</button></div><div id="modalBody" class="modal-body"></div></div></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
