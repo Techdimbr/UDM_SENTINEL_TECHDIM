@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -34,6 +34,13 @@ STATIC = ROOT / "static"
 CONFIG_PATH = Path(os.environ.get("UNIFI_PANEL_CONFIG", Path.home() / ".unifi-panel" / "config.json"))
 
 app = FastAPI(title="Painel UniFi de Seguranca", version="1.0.0")
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;"
+    return response
+
 
 _lock = threading.Lock()
 _client: UniFiClient | None = None
