@@ -1,6 +1,7 @@
 """Painel UniFi de Seguranca - backend FastAPI."""
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import json
 import os
@@ -184,9 +185,18 @@ def overview():
             out["errors"]["alarms"] = str(e)
     # stats de dispositivos (gateway primeiro)
     stats = {}
-    for d in (out.get("devices") or [])[:12]:
-        with contextlib.suppress(UniFiError):
-            stats[d["id"]] = c.device_stats(d["id"])
+    devices_to_fetch = (out.get("devices") or [])[:12]
+    if devices_to_fetch:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(devices_to_fetch)) as executor:
+            def fetch_stat(d_id):
+                try:
+                    return d_id, c.device_stats(d_id)
+                except UniFiError:
+                    return d_id, None
+
+            for d_id, stat in executor.map(fetch_stat, [d["id"] for d in devices_to_fetch]):
+                if stat is not None:
+                    stats[d_id] = stat
     out["deviceStats"] = stats
     return out
 
@@ -201,12 +211,15 @@ def sites():
 def devices(stats: bool = False):
     c = client()
     ds = c.devices()
-    if stats:
-        for d in ds:
-            try:
-                d["stats"] = c.device_stats(d["id"])
-            except UniFiError:
-                d["stats"] = None
+    if stats and ds:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(ds))) as executor:
+            def fetch_stat(d):
+                try:
+                    d["stats"] = c.device_stats(d["id"])
+                except UniFiError:
+                    d["stats"] = None
+                return d
+            ds = list(executor.map(fetch_stat, ds))
     return ds
 
 
@@ -269,14 +282,14 @@ def client_block(body: dict = Body(...)):
 def networks(detail: bool = True):
     c = client()
     ns = c.networks()
-    if detail:
-        out = []
-        for n in ns:
-            try:
-                out.append(c.network(n["id"]))
-            except UniFiError:
-                out.append(n)
-        return out
+    if detail and ns:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(ns))) as executor:
+            def fetch_detail(n):
+                try:
+                    return c.network(n["id"])
+                except UniFiError:
+                    return n
+            return list(executor.map(fetch_detail, ns))
     return ns
 
 
@@ -284,19 +297,19 @@ def networks(detail: bool = True):
 def wifi(detail: bool = True):
     c = client()
     ws = c.wifi()
-    if detail:
-        out = []
-        for w in ws:
-            try:
-                d = c.wifi_detail(w["id"])
-                sec = d.get("securityConfiguration") or {}
-                if "passphrase" in sec:
-                    sec["passphraseLength"] = len(sec["passphrase"] or "")
-                    sec["passphrase"] = "••••••••"
-                out.append(d)
-            except UniFiError:
-                out.append(w)
-        return out
+    if detail and ws:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(ws))) as executor:
+            def fetch_detail(w):
+                try:
+                    d = c.wifi_detail(w["id"])
+                    sec = d.get("securityConfiguration") or {}
+                    if "passphrase" in sec:
+                        sec["passphraseLength"] = len(sec["passphrase"] or "")
+                        sec["passphrase"] = "••••••••"
+                    return d
+                except UniFiError:
+                    return w
+            return list(executor.map(fetch_detail, ws))
     return ws
 
 
