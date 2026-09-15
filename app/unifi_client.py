@@ -284,6 +284,15 @@ class UniFiClient:
     def vouchers(self) -> list[dict]:
         return self.paged(self.sp("/hotspot/vouchers"))
 
+    def protect_nvr(self) -> list[dict]:
+        """Obtem informações de armazenamento/NVR da API clássica/Protect quando disponível."""
+        if not self.classic_available():
+            return []
+        try:
+            return self.classic("GET", "/stat/nvr") or []
+        except UniFiError:
+            return []
+
     def device_action(self, device_id: str, action: str) -> Any:
         return self.api("POST", self.sp(f"/devices/{device_id}/actions"), json={"action": action})
 

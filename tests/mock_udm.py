@@ -26,6 +26,7 @@ NETS = {
     "IoT": {"id": str(uuid.uuid4()), "vlanId": 20, "default": False, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal", "dns": [], "cf": "NONE"},
     # Guest tem filtro ligado mas nenhum DNS interno: filtrar aqui e correto, nao e conflito.
     "Guest": {"id": str(uuid.uuid4()), "vlanId": 30, "default": False, "isolationEnabled": True, "dhcpGuarding": {"enabled": True}, "zone": "Guest", "dns": [], "cf": "FAMILY"},
+    "Cameras": {"id": str(uuid.uuid4()), "vlanId": 40, "default": False, "isolationEnabled": False, "dhcpGuarding": None, "zone": "Internal", "dns": [], "cf": "NONE"},
 }
 WANS = [
     {"id": "w1", "name": "WAN1", "enabled": True, "active": True, "state": "UP", "failoverPriority": 1, "ipv4": {"type": "DHCP", "ipAddress": "203.0.113.5"}},
@@ -120,9 +121,10 @@ def devices(s: str, x_api_key: str | None = Header(None)):
 def device(s: str, d: str, x_api_key: str | None = Header(None)):
     auth(x_api_key)
     dev = next((x for x in DEVICES if x["id"] == d), None) or _404()
+    ports = [{"idx": i, "connector": "RJ45" if i <= 8 else "SFP+", "state": "UP" if i < 5 else "DOWN", "speedMbps": 1000 if i <= 8 else 10000, "maxSpeedMbps": 1000 if i <= 8 else 10000, "poe": {"enabled": True, "standard": "802.3af", "state": "UP"}} for i in range(1, 12)]
+    radios = [{"frequencyGHz": 2.4, "channel": 6, "channelWidthMHz": 20, "wlanStandard": "802.11ax"}, {"frequencyGHz": 5, "channel": 44, "channelWidthMHz": 40, "wlanStandard": "802.11ax"}]
     return {**dev, "adoptedAt": "2025-01-01T00:00:00Z", "provisionedAt": "2026-09-01T00:00:00Z",
-            "interfaces": {"ports": [{"idx": i, "connector": "RJ45", "state": "UP" if i < 5 else "DOWN", "speedMbps": 1000, "maxSpeedMbps": 1000, "poe": {"enabled": True, "standard": "802.3af", "state": "UP"}} for i in range(1, 9)],
-                           "radios": [{"frequencyGHz": 2.4, "channel": 6, "channelWidthMHz": 20, "wlanStandard": "802.11ax"}, {"frequencyGHz": 5, "channel": 44, "channelWidthMHz": 80, "wlanStandard": "802.11ax"}]}}
+            "interfaces": {"ports": ports, "radios": radios}}
 
 
 @mock.get(I + "/sites/{s}/devices/{d}/statistics/latest")
@@ -144,7 +146,7 @@ def clients(s: str, x_api_key: str | None = Header(None)):
 
 def _net(n, name):
     return {"id": n["id"], "name": name, "enabled": True, "management": "GATEWAY", "vlanId": n["vlanId"], "default": n["default"], "zoneId": ZONES[n["zone"]],
-            "isolationEnabled": n["isolationEnabled"], "internetAccessEnabled": True, "mdnsForwardingEnabled": True, "dhcpGuarding": n["dhcpGuarding"],
+            "isolationEnabled": n["isolationEnabled"], "internetAccessEnabled": n.get("internetAccessEnabled", True), "mdnsForwardingEnabled": True, "dhcpGuarding": n["dhcpGuarding"],
             "contentFilteringLevel": n["cf"],
             "ipv4Configuration": {"hostIpAddress": f"192.168.{n['vlanId']}.1", "prefixLength": 24,
                                   "dhcpConfiguration": {"mode": "SERVER", "dnsServers": n["dns"], "range": {"start": f"192.168.{n['vlanId']}.6", "stop": f"192.168.{n['vlanId']}.254"}}}}
@@ -170,6 +172,8 @@ async def upd_network(s: str, nid: str, req: Request, x_api_key: str | None = He
     for n in NETS.values():
         if n["id"] == nid:
             n["isolationEnabled"] = body.get("isolationEnabled", n["isolationEnabled"]); n["dhcpGuarding"] = body.get("dhcpGuarding", n["dhcpGuarding"])
+            if "internetAccessEnabled" in body:
+                n["internetAccessEnabled"] = body["internetAccessEnabled"]
             if "contentFilteringLevel" in body:
                 n["cf"] = body["contentFilteringLevel"] or "NONE"
     return body
@@ -422,6 +426,11 @@ async def sessions_ep(req: Request, x_api_key: str | None = Header(None)):
 @mock.get(C + "/stat/anomalies")
 def anomalies_ep(x_api_key: str | None = Header(None)):
     auth(x_api_key); return cwrap(ANOMALIES)
+
+
+@mock.get(C + "/stat/nvr")
+def nvr_ep(x_api_key: str | None = Header(None)):
+    auth(x_api_key); return cwrap([{"id": "disk1", "status": "OK", "model": "ST8000VX004"}])
 
 
 @mock.get(C + "/rest/networkconf")
