@@ -7,8 +7,9 @@ a{color:var(--accent);cursor:pointer}
 .brand small{display:block;color:var(--muted);font-size:11px}
 .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);display:grid;place-items:center;font-weight:700}
 nav{display:flex;flex-direction:column;padding:10px;gap:2px;flex:1;overflow:auto}
-nav a{padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none}
+nav a{padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none;outline:2px solid transparent;outline-offset:-2px}
 nav a:hover{background:var(--panel2);color:var(--text)}nav a.active{background:var(--accent);color:#fff}
+nav a:focus-visible{outline-color:var(--accent);background:var(--panel2);color:var(--text)}
 .conn{padding:12px 16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;display:flex;gap:8px;align-items:center}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}.conn.ok .dot{background:var(--ok)}
 main{flex:1;min-width:0;padding:0 24px 40px}

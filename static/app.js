@@ -46,7 +46,7 @@ const chartDefaults = { plugins: { legend: { labels: { color: '#8b98a9' } } }, s
 const PALETTE = ['#3b82f6', '#ef4444', '#f59e0b', '#22c55e', '#a855f7', '#38bdf8', '#f472b6', '#84cc16', '#fb923c', '#94a3b8'];
 
 // -------------------------------------------------------------- navigation
-$('#nav').addEventListener('click', e => { const a = e.target.closest('a'); if (a) go(a.dataset.view); });
+$('#nav').addEventListener('click', e => { const a = e.target.closest('a'); if (a) { e.preventDefault(); go(a.dataset.view); } });
 $('#refreshBtn').addEventListener('click', () => render(true));
 function go(v) { state.view = v; $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === v)); $('#viewTitle').textContent = TITLES[v]; location.hash = v; render(); }
 
