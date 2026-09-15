@@ -109,6 +109,23 @@ def test_audit_findings(api):
     assert any("PPTP" in t for t in titles)
     assert any("UPnP" in t for t in titles)
     assert any("External -> Internal" in t for t in titles)
+    assert any("Wi-Fi 6" in t or "U6" in t for t in titles)
+    assert any("Câmeras" in t or "Cameras" in t for t in titles)
+
+
+def test_apply_fix_camera_and_wifi3(api, restore_mock):
+    # Testar ação para bloquear WAN de rede de Câmeras
+    cam_net = mock_udm.NETS["Cameras"]
+    r = api.post("/api/audit/apply", json={"action": "block_network_wan", "params": {"networkId": cam_net["id"]}})
+    assert r.status_code == 200
+    net = api.get("/api/networks").json()
+    c_net = next(n for n in net if n["id"] == cam_net["id"])
+    assert c_net["internetAccessEnabled"] is False
+
+    # Testar ação para WPA2/WPA3 Misto
+    w_id = mock_udm.WIFI[1]["id"]
+    r = api.post("/api/audit/apply", json={"action": "wifi_enable_wpa3", "params": {"wifiId": w_id}})
+    assert r.status_code == 200
 
 
 def test_apply_fix_ips_mode_and_upnp(api):

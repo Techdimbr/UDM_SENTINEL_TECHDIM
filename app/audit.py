@@ -15,6 +15,8 @@ from .unifi_client import UniFiClient, UniFiError
 SEV_ORDER = {"critico": 5, "alto": 4, "medio": 3, "baixo": 2, "info": 1, "ok": 0}
 IOT_HINTS = re.compile(r"iot|camera|cam|smart|tv|alexa|guest|convidad|visitant|dmz|server|servidor|ap\b", re.IGNORECASE)
 GUEST_HINTS = re.compile(r"guest|convidad|visitant|hotspot", re.IGNORECASE)
+CAM_HINTS = re.compile(r"camera|cam|cctv|protect|uvc|g3|g4|g5|ai-pro|flex|bullet|dome|turret|nvr", re.IGNORECASE)
+U6_HINTS = re.compile(r"u6|u6lr|u6-lr|u6-pro|u6-plus|u6-enterprise|u6-mesh|u6-iw|u7", re.IGNORECASE)
 
 
 def _f(id_: str, severity: str, title: str, detail: str, why: str = "", manual: list[str] | None = None,
@@ -75,9 +77,12 @@ class SecurityAudit:
 
         self.check_ips()
         self.check_wifi()
+        self.check_u6_aps()
         self.check_networks()
+        self.check_cameras_protect()
         self.check_firewall()
         self.check_devices()
+        self.check_udm_pro_hardware()
         self.check_vpn()
         self.check_gateway_settings()
         self.check_admin_activity()
@@ -216,6 +221,47 @@ class SecurityAudit:
                     "Senhas curtas de WiFi sao quebradas offline em minutos com GPUs.",
                     ["Use 16+ caracteres com palavras aleatorias ou frase longa."], area="wifi", refs=ref))
 
+    def check_u6_aps(self):
+        """Verificacoes de otimizacao especificas para antenas UniFi U6 e U6-LR (Wi-Fi 6)."""
+        devs = self.data.get("devices") or []
+        u6_aps = [d for d in devs if U6_HINTS.search(d.get("model", "")) or U6_HINTS.search(d.get("name", ""))]
+        if not u6_aps:
+            return
+
+        for ap in u6_aps:
+            name = ap.get("name", ap.get("model", "AP U6"))
+            ref = [{"type": "device", "id": ap.get("id"), "name": name}]
+            # detalhes/interfaces do AP
+            stats = self._safe(f"device:{ap['id']}", lambda ap=ap: self.c.device(ap["id"]), ap)
+            radios = ((stats or {}).get("interfaces") or {}).get("radios") or []
+            r5ghz = next((r for r in radios if r.get("frequencyGHz") in (5, 6)), None)
+            if r5ghz:
+                width = r5ghz.get("channelWidthMHz", 20)
+                if width < 80:
+                    self.findings.append(_f(
+                        f"u6-width-{ap['id']}", "medio", f"AP Wi-Fi 6 '{name}' operando em largura subotimizada ({width}MHz em 5GHz)",
+                        f"O AP Wi-Fi 6 ({ap.get('model')}) suporta 80MHz/160MHz, mas esta configurado em {width}MHz.",
+                        "Larguras de 20MHz/40MHz no 5GHz limitam drasticamente a throughput de alta velocidade do Wi-Fi 6 (OFDMA/MU-MIMO).",
+                        ["UniFi Devices > (AP) > Settings > Radios > 5GHz Channel Width: selecione HE80 ou HE160."],
+                        area="wifi", refs=ref))
+                else:
+                    self.findings.append(_f(f"u6-width-ok-{ap['id']}", "ok", f"AP Wi-Fi 6 '{name}' com largura otimizada ({width}MHz)", "High-throughput Wi-Fi 6 ativo.", area="wifi", refs=ref))
+
+        # PMF e WPA3 global para radios U6
+        for w in self.data.get("wifi_detail") or []:
+            if not w.get("enabled"):
+                continue
+            sec = w.get("securityConfiguration") or {}
+            st = sec.get("type", "")
+            if st == "WPA2_PERSONAL":
+                self.findings.append(_f(
+                    f"u6-wpa3-upgrade-{w['id']}", "info", f"Rede WiFi '{w.get('name')}' nao aproveita WPA3/SAE nos APs U6",
+                    "A rede esta configurada apenas em WPA2. Os APs UniFi U6-LR / U6 suportam WPA2/WPA3 Personal (SAE) nativamente.",
+                    "Ativar WPA2/WPA3 Misto melhora a seguranca contra brute-force sem desconectar dispositivos mais antigos.",
+                    manual=["Settings > WiFi > (Rede) > Security Protocol: selecione WPA2/WPA3 Personal."],
+                    fix={"action": "wifi_enable_wpa3", "params": {"wifiId": w["id"]}, "label": "Mudar para WPA2/WPA3 Misto"},
+                    area="wifi"))
+
     def check_networks(self):
         nets = [n for n in (self.data.get("networks_detail") or []) if n.get("enabled", True)]
         gw_nets = [n for n in nets if n.get("management") == "GATEWAY"]
@@ -244,6 +290,52 @@ class SecurityAudit:
                     "Qualquer dispositivo pode se passar por servidor DHCP (rogue DHCP) e redirecionar trafego.",
                     manual=["Settings > Networks > (rede) > DHCP > DHCP Guarding: informe o IP do gateway como servidor confiavel."],
                     fix={"action": "dhcp_guarding", "params": {"networkId": n["id"]}, "label": "Ativar DHCP Guarding"}, area="redes", refs=ref))
+
+    def check_cameras_protect(self):
+        """Verificacoes de seguranca para Câmeras de Seguranca e UniFi Protect."""
+        nets = [n for n in (self.data.get("networks_detail") or []) if n.get("enabled", True)]
+        clients = self.data.get("clients") or []
+        cam_nets = [n for n in nets if CAM_HINTS.search(n.get("name", ""))]
+        cam_clients = [c for c in clients if CAM_HINTS.search(c.get("name", "") or "") or CAM_HINTS.search((c.get("extra") or {}).get("hostname", "") or "")]
+
+        if not cam_nets and not cam_clients:
+            self.findings.append(_f(
+                "cam-vlan-missing", "info", "Nenhuma rede ou VLAN dedicada para Câmeras / CFTV detectada",
+                "Câmeras de seguranca estao compartilhando a rede principal ou nao foram identificadas em uma VLAN própria.",
+                "Câmeras IP sao alvos prioritarios para botnets (como Mirai) e invasores. Devem ser mantidas em VLAN isolada sem acesso a internet.",
+                ["Settings > Networks > Create New Network: 'Câmeras / CFTV' (VLAN isolada).",
+                 "Desative o acesso a internet ('Internet Access = Disabled') para a rede de câmeras."],
+                area="cameras"))
+            return
+
+        for cn in cam_nets:
+            ref = [{"type": "network", "id": cn["id"], "name": cn["name"]}]
+            if cn.get("internetAccessEnabled", True):
+                self.findings.append(_f(
+                    f"cam-net-wan-{cn['id']}", "alto", f"Rede de Câmeras '{cn['name']}' possui acesso a Internet liberado",
+                    "Câmeras de seguranca nao devem ter acesso livre a internet de saida para evitar exfiltracao de imagem e controle por botnets.",
+                    "O UniFi Protect no UDM Pro gerencia o fluxo localmente; as câmeras IP nao precisam de acesso direto a WAN.",
+                    ["Settings > Networks > (Rede Câmeras) > Advanced > desative 'Allow Internet Access'."],
+                    fix={"action": "block_network_wan", "params": {"networkId": cn["id"]}, "label": "Bloquear Acesso a Internet da Rede de Câmeras"},
+                    area="cameras", refs=ref))
+            else:
+                self.findings.append(_f(f"cam-net-wan-ok-{cn['id']}", "ok", f"Rede de Câmeras '{cn['name']}' sem acesso a Internet (Segura)", "Acesso WAN bloqueado para o segmento de CFTV.", area="cameras", refs=ref))
+
+            if not cn.get("isolationEnabled"):
+                self.findings.append(_f(
+                    f"cam-net-iso-{cn['id']}", "medio", f"Rede de Câmeras '{cn['name']}' nao esta isolada (Network Isolation)",
+                    "Dispositivos na rede de câmeras conseguem se comunicar diretamente com computadores e servidores internos.",
+                    manual=["Settings > Networks > (Rede Câmeras) > Advanced > ative 'Isolate Network'."],
+                    fix={"action": "isolate_network", "params": {"networkId": cn["id"]}, "label": "Isolar Rede de Câmeras"},
+                    area="cameras", refs=ref))
+
+            if not cn.get("dhcpGuarding"):
+                self.findings.append(_f(
+                    f"cam-net-dhcp-{cn['id']}", "info", f"DHCP Guarding desativado na rede de Câmeras '{cn['name']}'",
+                    "Protege as portas dos switches conectadas as câmeras contra servidores DHCP falsos.",
+                    manual=["Settings > Networks > (Rede Câmeras) > DHCP > DHCP Guarding: informe o IP do gateway."],
+                    fix={"action": "dhcp_guarding", "params": {"networkId": cn["id"]}, "label": "Ativar DHCP Guarding na Rede de Câmeras"},
+                    area="cameras", refs=ref))
 
     def check_firewall(self):
         zones = self.data.get("zones") or []
@@ -303,6 +395,44 @@ class SecurityAudit:
                 "dev-pending", "info", f"{len(pend)} dispositivo(s) UniFi aguardando adocao",
                 ", ".join(f"{p.get('model')} {p.get('macAddress')}" for p in pend[:5]),
                 "Dispositivos nao adotados na sua rede podem ser de vizinhos ou equipamentos esquecidos.", area="dispositivos"))
+
+    def check_udm_pro_hardware(self):
+        """Auditoria especifica de otimizacao de hardware do UDM Pro (SFP+ e Protect)."""
+        devs = self.data.get("devices") or []
+        gw = next((d for d in devs if (d.get("features") or []).count("gateway") or "UDM" in (d.get("model") or "").upper()), None)
+        if not gw:
+            return
+
+        gw_detail = self._safe(f"device:{gw['id']}", lambda gw=gw: self.c.device(gw["id"]), gw)
+        ports = ((gw_detail or {}).get("interfaces") or {}).get("ports") or []
+        ref = [{"type": "device", "id": gw["id"], "name": gw.get("name", "UDM Pro")}]
+
+        # Inspeção das portas SFP+ 10G (Porta 10 WAN SFP+, Porta 11 LAN SFP+)
+        sfp_ports = [p for p in ports if p.get("connector") in ("SFP+", "SFP") or p.get("maxSpeedMbps", 0) >= 10000 or p.get("idx") in (10, 11)]
+        if sfp_ports:
+            down_sfp = [p for p in sfp_ports if p.get("state") == "DOWN"]
+            if len(down_sfp) == len(sfp_ports):
+                self.findings.append(_f(
+                    "udm-sfp-unused", "info", f"Portas SFP+ 10Gbps do {gw.get('model')} desaproveitadas",
+                    "Nenhuma porta SFP+ 10G (Porta 10 WAN / Porta 11 LAN) esta conectada.",
+                    "Usar a porta SFP+ 11 (DAC/Fibra) para interconectar o UDM Pro aos switches UniFi evita o gargalo de 1Gbps no backplane das portas RJ45 1-8.",
+                    ["Utilize um cabo Direct Attach Copper (DAC) SFP+ 10G entre a Porta 11 do UDM Pro e a porta SFP+ do seu Switch principal."],
+                    area="gateway", refs=ref))
+            else:
+                self.findings.append(_f("udm-sfp-ok", "ok", f"Porta SFP+ 10G ativa no {gw.get('model')}", "Interconexao de alta velocidade ativa.", area="gateway", refs=ref))
+
+        # Status de armazenamento / NVR no UDM Pro
+        nvr = self.c.protect_nvr()
+        if nvr:
+            for disk in nvr:
+                status = disk.get("status") or disk.get("state") or "HEALTHY"
+                if str(status).upper() not in ("OK", "HEALTHY", "GOOD"):
+                    self.findings.append(_f(
+                        f"udm-hdd-{disk.get('id', 'nvr')}", "alto", f"Alerta de saude no Disco / NVR do UDM Pro: {status}",
+                        "O disco rígido interno do UDM Pro (usado pelo UniFi Protect) reportou estado anômalo.",
+                        "Falha no disco pode interromper a gravacao contínua das câmeras de seguranca.",
+                        ["Verifique o UniFi Storage / Protect settings no UDM Pro e substitua o HD se necessario."],
+                        area="cameras", refs=ref))
 
     def check_vpn(self):
         for v in self.data.get("vpn") or []:
@@ -463,6 +593,22 @@ def apply_fix(c: UniFiClient, action: str, params: dict) -> dict:
         body["clientIsolationEnabled"] = True
         r = c.update_wifi(w["id"], body)
         return {"ok": True, "message": f"Isolamento de clientes ativado em '{w.get('name')}'.", "result": r}
+    if action == "wifi_enable_wpa3":
+        w = c.wifi_detail(params["wifiId"])
+        body = _clean(w)
+        sec = body.get("securityConfiguration") or {}
+        sec["type"] = "WPA2_WPA3_PERSONAL"
+        if not sec.get("pmfMode"):
+            sec["pmfMode"] = "OPTIONAL"
+        body["securityConfiguration"] = sec
+        r = c.update_wifi(w["id"], body)
+        return {"ok": True, "message": f"Seguranca da WiFi '{w.get('name')}' atualizada para WPA2/WPA3 Misto.", "result": r}
+    if action == "block_network_wan":
+        n = c.network(params["networkId"])
+        body = _clean(n)
+        body["internetAccessEnabled"] = False
+        r = c.update_network(n["id"], body)
+        return {"ok": True, "message": f"Acesso a Internet de saida bloqueado para a rede '{n.get('name')}'.", "result": r}
     if action == "wifi_disable":
         w = c.wifi_detail(params["wifiId"])
         body = _clean(w)

@@ -78,11 +78,14 @@ VIEWS.overview = async (force) => {
   const o = await load('overview', '/api/overview', force);
   const devs = o.devices || [], clients = o.clients || [], nets = o.networks || [], wifi = o.wifi || [];
   const online = devs.filter(d => d.state === 'ONLINE').length;
-  const gw = devs.find(d => (d.features || []).includes('gateway'));
+  const gw = devs.find(d => (d.features || []).includes('gateway') || (d.model || '').includes('UDM'));
   const gwStats = gw && o.deviceStats[gw.id];
+  const u6Aps = devs.filter(d => /(u6|u6lr|u7|wifi 6)/i.test(d.model || '') || /(u6|u6lr|u7|wifi 6)/i.test(d.name || ''));
+  const cams = clients.filter(c => /(camera|cam|cctv|protect|uvc)/i.test(c.name || '') || /(camera|cam|cctv|protect|uvc)/i.test(c.extra?.hostname || ''));
   const thr = o.threats;
   const health = o.health || [];
   const errs = Object.entries(o.errors || {});
+  const camNets = nets.filter(n => /(camera|cam|cctv|protect)/i.test(n.name || ''));
   view.innerHTML = `
   ${errs.length ? `<div class="alert info">Alguns dados não puderam ser carregados: ${errs.map(([k, v]) => `<b>${k}</b>: ${esc(v)}`).join(' · ')}</div>` : ''}
   ${!o.classicApi ? `<div class="alert info">A API clássica (eventos, alarmes, IPS) não respondeu com esta chave/conexão. Ameaças e logs exigem conexão <b>local</b> ao UDM Pro com chave API do console. Os dados da Integration API continuam disponíveis.</div>` : ''}
@@ -91,8 +94,8 @@ VIEWS.overview = async (force) => {
     <div class="card"><h3>Clientes</h3><div class="kpi">${clients.length}<small>${clients.filter(c => c.type === 'WIRELESS').length} WiFi · ${clients.filter(c => c.type === 'WIRED').length} cabo · ${clients.filter(c => c.type === 'VPN' || c.type === 'TELEPORT').length} VPN</small></div></div>
     <div class="card"><h3>Redes / WiFi</h3><div class="kpi">${nets.length}<small>${wifi.length} SSIDs</small></div></div>
     <div class="card"><h3>Ameaças (7d)</h3><div class="kpi">${thr ? thr.total : '-'}<small>${thr ? thr.blocked + ' bloqueadas · ' + thr.detectedOnly + ' só detectadas' : 'indisponível'}</small></div></div>
-    <div class="card"><h3>Políticas de firewall</h3><div class="kpi">${(o.policies || []).length}<small>${(o.zones || []).length} zonas</small></div></div>
-    <div class="card"><h3>Gateway</h3><div class="kpi">${gwStats ? Math.round(gwStats.cpuUtilizationPct ?? 0) + '%' : '-'}<small>CPU · RAM ${gwStats ? Math.round(gwStats.memoryUtilizationPct ?? 0) + '%' : '-'} · up ${gwStats ? fmtUptime(gwStats.uptimeSec) : '-'}</small></div></div>
+    <div class="card"><h3>Equipamentos U6 & Protect</h3><div class="kpi">${u6Aps.length} APs U6<small>${cams.length} Câmeras · ${camNets.length} Rede(s) CFTV</small></div></div>
+    <div class="card"><h3>Gateway (UDM Pro)</h3><div class="kpi">${gwStats ? Math.round(gwStats.cpuUtilizationPct ?? 0) + '%' : '-'}<small>CPU · RAM ${gwStats ? Math.round(gwStats.memoryUtilizationPct ?? 0) + '%' : '-'} · up ${gwStats ? fmtUptime(gwStats.uptimeSec) : '-'}</small></div></div>
   </div>
   <div class="grid g3 mt">
     <div class="card"><h3>Saúde dos subsistemas</h3>${health.length ? health.map(h => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${esc(SUBSYS[h.subsystem] || h.subsystem)}</span>${tag(h.status === 'ok' ? 'ok' : h.status, h.status === 'ok' ? 'ok' : 'alto')}</div>`).join('') : '<div class="muted">Sem dados (API clássica).</div>'}
