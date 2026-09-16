@@ -156,17 +156,32 @@ def overview():
             out[name] = None
             out["errors"][name] = str(e)
 
-    grab("info", c.info)
+    # ⚡ Bolt: Prime site cache sequentially to prevent redundant concurrent API calls
     grab("site", c.site)
-    grab("devices", c.devices)
-    grab("clients", c.clients)
-    grab("networks", c.networks)
-    grab("wifi", c.wifi)
-    grab("wans", c.wans)
-    grab("zones", c.firewall_zones)
-    grab("policies", c.firewall_policies)
-    grab("vpn", c.vpn_servers)
-    grab("pending", c.pending_devices)
+
+    # ⚡ Bolt: Fetch top-level dashboard collections concurrently to avoid N+1 bottleneck
+    tasks = {
+        "info": c.info,
+        "devices": c.devices,
+        "clients": c.clients,
+        "networks": c.networks,
+        "wifi": c.wifi,
+        "wans": c.wans,
+        "zones": c.firewall_zones,
+        "policies": c.firewall_policies,
+        "vpn": c.vpn_servers,
+        "pending": c.pending_devices,
+    }
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(16, len(tasks))) as executor:
+        futures = {executor.submit(fn): name for name, fn in tasks.items()}
+        for future in concurrent.futures.as_completed(futures):
+            name = futures[future]
+            try:
+                out[name] = future.result()
+            except UniFiError as e:
+                out[name] = None
+                out["errors"][name] = str(e)
+
     out["classicApi"] = c.classic_available()
     if out["classicApi"]:
         grab("health", c.health)
