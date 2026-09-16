@@ -1,3 +1,3 @@
-## 2024-05-19 - Keyboard Navigation for Custom Sidebar Links
-**Learning:** In SPAs using plain `<a>` tags with `data-*` attributes for routing, missing `href` attributes make navigation completely inaccessible via keyboard because they are omitted from the document's tab order by browsers.
-**Action:** Always ensure navigation elements are semantic. Add `href="#hash"` to anchor tags to make them focusable, and combine with `e.preventDefault()` in JS event listeners to handle routing while preserving accessibility and focus management. Add `:focus-visible` styles to complete the experience.
+## 2024-05-24 - Accessibility (A11y) improvements for modal dialogs and icon-only buttons
+**Learning:** Adding semantic ARIA roles like `role="dialog"`, `aria-modal="true"`, and `aria-labelledby="..."` ensures screen readers can correctly interpret and navigate custom modal overlays. In addition, icon-only buttons without an accessible name are completely invisible to screen reader users; an `aria-label` is crucial.
+**Action:** Always ensure custom UI components like modals and icon-only interactive elements have proper ARIA attributes to support assistive technologies.
