@@ -1,3 +1,6 @@
 ## 2024-05-19 - Keyboard Navigation for Custom Sidebar Links
 **Learning:** In SPAs using plain `<a>` tags with `data-*` attributes for routing, missing `href` attributes make navigation completely inaccessible via keyboard because they are omitted from the document's tab order by browsers.
 **Action:** Always ensure navigation elements are semantic. Add `href="#hash"` to anchor tags to make them focusable, and combine with `e.preventDefault()` in JS event listeners to handle routing while preserving accessibility and focus management. Add `:focus-visible` styles to complete the experience.
+## 2024-03-21 - Form Labels and Icon Buttons in Painel UniFi
+**Learning:** Found a consistent pattern where `<label>` elements lack the `for` attribute mapping them to their inputs. In vanilla JS templates, it's easy to overlook this, but it severely degrades the experience for screen readers and reduces the click target area (clicking the label doesn't focus the input). Furthermore, the modal close button is just an "X" without an `aria-label`.
+**Action:** When working on vanilla JS apps, always ensure that every `<label>` has a `for` attribute pointing to an input's `id`, and that any icon-only buttons include an `aria-label`.
