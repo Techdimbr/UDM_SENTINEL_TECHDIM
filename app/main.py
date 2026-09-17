@@ -158,15 +158,24 @@ def overview():
 
     grab("info", c.info)
     grab("site", c.site)
-    grab("devices", c.devices)
-    grab("clients", c.clients)
-    grab("networks", c.networks)
-    grab("wifi", c.wifi)
-    grab("wans", c.wans)
-    grab("zones", c.firewall_zones)
-    grab("policies", c.firewall_policies)
-    grab("vpn", c.vpn_servers)
-    grab("pending", c.pending_devices)
+
+    # ⚡ Bolt: Execute independent API calls concurrently to reduce overview load time.
+    # We call c.site() sequentially first to prime the internal site cache and avoid redundant external requests.
+    tasks = [
+        ("devices", c.devices),
+        ("clients", c.clients),
+        ("networks", c.networks),
+        ("wifi", c.wifi),
+        ("wans", c.wans),
+        ("zones", c.firewall_zones),
+        ("policies", c.firewall_policies),
+        ("vpn", c.vpn_servers),
+        ("pending", c.pending_devices),
+    ]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        futures = [executor.submit(grab, name, fn) for name, fn in tasks]
+        concurrent.futures.wait(futures)
     out["classicApi"] = c.classic_available()
     if out["classicApi"]:
         grab("health", c.health)
