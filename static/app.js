@@ -126,7 +126,7 @@ VIEWS.threats = async (force) => {
   view.innerHTML = `
   <div class="help">O UDM Pro usa o motor <b>Suricata</b> com regras <b>Emerging Threats</b>. Cada evento abaixo foi interpretado automaticamente: o que é, de onde veio, se foi bloqueado e o que fazer. Clique em um evento para a explicação completa.</div>
   <div class="toolbar mt">
-    <label style="margin:0">Período</label><select id="thrDays">${[1, 3, 7, 14, 30].map(d => `<option value="${d}" ${d === days ? 'selected' : ''}>${d} dia(s)</option>`).join('')}</select>
+    <label for="thrDays" style="margin:0">Período</label><select id="thrDays">${[1, 3, 7, 14, 30].map(d => `<option value="${d}" ${d === days ? 'selected' : ''}>${d} dia(s)</option>`).join('')}</select>
     <div class="chips" id="thrChips">${[['all', 'Todos'], ['critico', 'Crítico'], ['alto', 'Alto'], ['medio', 'Médio'], ['baixo', 'Baixo'], ['saida', 'Originados de dentro'], ['nao-bloq', 'Não bloqueados']].map(([k, l]) => `<span class="chip ${state.threatFilter === k ? 'active' : ''}" data-f="${k}">${l}</span>`).join('')}</div>
     <input id="thrSearch" placeholder="Buscar assinatura, IP…" style="margin-left:auto;width:240px">
   </div>
@@ -211,7 +211,7 @@ VIEWS.audit = async (force) => {
     ${a.errors.length ? `<details><summary class="small muted">${a.errors.length} aviso(s) de coleta</summary><pre>${esc(a.errors.join('\n'))}</pre></details>` : ''}</div>
   </div>
   <div class="toolbar mt"><div class="chips" id="audChips"><span class="chip ${state.auditArea === 'all' ? 'active' : ''}" data-a="all">Todas as áreas</span>${areas.map(x => `<span class="chip ${state.auditArea === x ? 'active' : ''}" data-a="${x}">${esc(x)}</span>`).join('')}</div>
-  <label style="margin:0 0 0 auto"><input type="checkbox" id="audHideOk" ${state.auditHideOk ? 'checked' : ''}> ocultar OK/info</label></div>
+  <label for="audHideOk" style="margin:0 0 0 auto"><input type="checkbox" id="audHideOk" ${state.auditHideOk ? 'checked' : ''}> ocultar OK/info</label></div>
   <div id="audList"></div>`;
   const draw = () => {
     const hide = $('#audHideOk').checked; state.auditHideOk = hide;
@@ -259,16 +259,16 @@ VIEWS.firewall = async (force) => {
     <div class="card"><h3>Assistente: criar política de bloqueio</h3>
       <p class="small muted">Exemplos: bloquear <b>IoT → Internal</b> (câmeras/TVs não acessam seus PCs), <b>Guest → Internal</b>, ou bloquear portas administrativas (22, 3389, 445) vindas de qualquer zona.</p>
       <div class="form-row">
-        <div class="field"><label>Nome</label><input id="wzName" value="Bloquear IoT para rede interna"></div>
-        <div class="field"><label>Ação</label><select id="wzAction"><option value="BLOCK">BLOCK (descartar silenciosamente)</option><option value="REJECT">REJECT (recusar com resposta)</option><option value="ALLOW">ALLOW (permitir)</option></select></div>
-        <div class="field"><label>Zona de origem</label><select id="wzSrc">${fw.zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
-        <div class="field"><label>Zona de destino</label><select id="wzDst">${fw.zones.map(z => `<option value="${z.id}" ${z.name === 'Internal' ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}</select></div>
-        <div class="field"><label>Redes de origem (opcional, Ctrl para várias)</label><select id="wzSrcNets" multiple size="4">${nets.map(n => `<option value="${n.id}">${esc(n.name)} (VLAN ${n.vlanId})</option>`).join('')}</select></div>
-        <div class="field"><label>Redes de destino (opcional)</label><select id="wzDstNets" multiple size="4">${nets.map(n => `<option value="${n.id}">${esc(n.name)} (VLAN ${n.vlanId})</option>`).join('')}</select></div>
-        <div class="field"><label>Portas de destino (opcional, ex.: 22,3389,445 ou 8000-8100; ignorado se redes de destino selecionadas)</label><input id="wzPorts" placeholder="22,3389,445"></div>
-        <div class="field"><label>Protocolo</label><select id="wzProto"><option value="">Todos</option><option value="TCP_UDP">TCP+UDP</option><option value="TCP">TCP</option><option value="UDP">UDP</option><option value="ICMP">ICMP</option></select></div>
-        <div class="field"><label>Estado da conexão</label><select id="wzState"><option value="">Todos</option><option value="NEW">Somente NEW (não quebra respostas de conexões iniciadas do outro lado)</option></select></div>
-        <div class="field"><label>Log</label><select id="wzLog"><option value="1">Ativado (recomendado)</option><option value="0">Desativado</option></select></div>
+        <div class="field"><label for="wzName">Nome</label><input id="wzName" value="Bloquear IoT para rede interna"></div>
+        <div class="field"><label for="wzAction">Ação</label><select id="wzAction"><option value="BLOCK">BLOCK (descartar silenciosamente)</option><option value="REJECT">REJECT (recusar com resposta)</option><option value="ALLOW">ALLOW (permitir)</option></select></div>
+        <div class="field"><label for="wzSrc">Zona de origem</label><select id="wzSrc">${fw.zones.map(z => `<option value="${z.id}">${esc(z.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="wzDst">Zona de destino</label><select id="wzDst">${fw.zones.map(z => `<option value="${z.id}" ${z.name === 'Internal' ? 'selected' : ''}>${esc(z.name)}</option>`).join('')}</select></div>
+        <div class="field"><label for="wzSrcNets">Redes de origem (opcional, Ctrl para várias)</label><select id="wzSrcNets" multiple size="4">${nets.map(n => `<option value="${n.id}">${esc(n.name)} (VLAN ${n.vlanId})</option>`).join('')}</select></div>
+        <div class="field"><label for="wzDstNets">Redes de destino (opcional)</label><select id="wzDstNets" multiple size="4">${nets.map(n => `<option value="${n.id}">${esc(n.name)} (VLAN ${n.vlanId})</option>`).join('')}</select></div>
+        <div class="field"><label for="wzPorts">Portas de destino (opcional, ex.: 22,3389,445 ou 8000-8100; ignorado se redes de destino selecionadas)</label><input id="wzPorts" placeholder="22,3389,445"></div>
+        <div class="field"><label for="wzProto">Protocolo</label><select id="wzProto"><option value="">Todos</option><option value="TCP_UDP">TCP+UDP</option><option value="TCP">TCP</option><option value="UDP">UDP</option><option value="ICMP">ICMP</option></select></div>
+        <div class="field"><label for="wzState">Estado da conexão</label><select id="wzState"><option value="">Todos</option><option value="NEW">Somente NEW (não quebra respostas de conexões iniciadas do outro lado)</option></select></div>
+        <div class="field"><label for="wzLog">Log</label><select id="wzLog"><option value="1">Ativado (recomendado)</option><option value="0">Desativado</option></select></div>
       </div>
       <button class="btn" onclick="wizardPreview()">Pré-visualizar JSON</button> <button class="btn primary" onclick="wizardCreate()">Criar política</button>
       <pre id="wzPreview" class="hidden mt"></pre>
@@ -355,7 +355,7 @@ VIEWS.logs = async (force) => {
   const [evs, alarms] = await Promise.all([load('events' + hours, `/api/events?hours=${hours}&limit=1000`, force), load('alarms', '/api/alarms', force)]);
   state.logKind = state.logKind || 'all';
   view.innerHTML = `
-  <div class="toolbar"><label style="margin:0">Período</label><select id="logHours">${[6, 24, 72, 168, 720].map(h => `<option value="${h}" ${h === hours ? 'selected' : ''}>${h < 24 ? h + 'h' : (h / 24) + ' dias'}</option>`).join('')}</select>
+  <div class="toolbar"><label for="logHours" style="margin:0">Período</label><select id="logHours">${[6, 24, 72, 168, 720].map(h => `<option value="${h}" ${h === hours ? 'selected' : ''}>${h < 24 ? h + 'h' : (h / 24) + ' dias'}</option>`).join('')}</select>
     <div class="chips" id="logChips">${[['all', 'Todos'], ['seguranca', 'Segurança'], ['alerta', 'Alertas'], ['info', 'Informativos']].map(([k, l]) => `<span class="chip ${state.logKind === k ? 'active' : ''}" data-k="${k}">${l}</span>`).join('')}</div>
     <input id="logSearch" placeholder="Buscar…" style="margin-left:auto;width:240px"></div>
   <div class="grid g2">
@@ -426,7 +426,7 @@ VIEWS.traffic = async (force) => {
       <td class="small">${c.topApps.map(a => `${esc(a.app)} <span class="muted">(${fmtBytes(a.totalBytes)})</span>`).join(' · ')}</td></tr>`).join('')}</table></div></div>`}
 
   <div class="card mt"><h3>Destinos externos vistos pelo IPS</h3>
-    <div class="toolbar"><label style="margin:0">Período</label><select id="destDays">${[1, 3, 7, 14, 30].map(x => `<option value="${x}" ${x === days ? 'selected' : ''}>${x} dia(s)</option>`).join('')}</select>
+    <div class="toolbar"><label for="destDays" style="margin:0">Período</label><select id="destDays">${[1, 3, 7, 14, 30].map(x => `<option value="${x}" ${x === days ? 'selected' : ''}>${x} dia(s)</option>`).join('')}</select>
       <span class="small muted">${d.available ? d.total + ' destinos distintos' : ''}</span></div>
     ${d.available ? `<div class="tbl"><table><tr><th>IP</th><th>País</th><th>Risco</th><th>Eventos</th><th>Bloqueados</th><th>Tipos</th></tr>
       ${d.destinations.map(x => `<tr><td class="mono">${esc(x.ip)}</td><td class="small">${esc(x.country || '-')}</td>
@@ -468,11 +468,11 @@ VIEWS.validation = async (force) => {
         <div><b>Risco do teste:</b> ${esc(t.harm)}</div>
       </div></details>`).join('')}
     <div class="form-row mt">
-      <div class="field"><label>Alvo da varredura (deve estar na sua rede)</label>
+      <div class="field"><label for="valTarget">Alvo da varredura (deve estar na sua rede)</label>
         <input id="valTarget" value="${esc((v.targets.gateways || [])[0] || '')}" placeholder="192.168.1.1">
         <div class="small muted">Aceitos: ${(v.targets.gateways || []).map(esc).join(', ') || 'nenhum detectado'}${(v.targets.subnets || []).length ? ' · sub-redes ' + v.targets.subnets.map(esc).join(', ') : ''}</div></div>
     </div>
-    <label class="mt" style="display:block"><input type="checkbox" id="valAuth"> <b>Confirmo que este equipamento é meu ou tenho autorização escrita do proprietário para testá-lo.</b></label>
+    <label for="valAuth" class="mt" style="display:block"><input type="checkbox" id="valAuth"> <b>Confirmo que este equipamento é meu ou tenho autorização escrita do proprietário para testá-lo.</b></label>
     <button class="btn primary mt" onclick="valRun()">Executar validação</button>
     <button class="btn mt" id="valCorr" onclick="valCorrelate()" disabled>Verificar detecções</button>
   </div>
@@ -546,7 +546,7 @@ VIEWS.continuity = async (force) => {
     sequestro</b>: a consulta nunca chega ao controlador de domínio, e os registros SRV do AD (<span class="mono">_ldap._tcp</span>,
     <span class="mono">_kerberos._tcp</span>) não existem no resolvedor público. Resultado: logon, ingresso no domínio e replicação falham.</p>
     <div class="toolbar">
-      <div class="field" style="flex:1;margin:0"><label>Controladores de domínio (opcional — separados por vírgula; vazio = detectar sozinho)</label>
+      <div class="field" style="flex:1;margin:0"><label for="adSrv">Controladores de domínio (opcional — separados por vírgula; vazio = detectar sozinho)</label>
         <input id="adSrv" value="${esc(state.adServers || '')}" placeholder="192.168.10.10, 192.168.10.11"></div>
       <button class="btn" onclick="contDetect()">Detectar</button>
     </div>
@@ -589,7 +589,7 @@ VIEWS.continuity = async (force) => {
         ${v.note ? `<div class="small" style="color:var(--warn)">${esc(v.note)}</div>` : ''}</div>
     </div>
     <div class="toolbar mt">
-      <label style="margin:0">Simular queda para</label>
+      <label for="simWan" style="margin:0">Simular queda para</label>
       <select id="simWan">${wan.snapshot.wans.filter(w => w.id !== wan.snapshot.activeWanId).map(w => `<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('') || '<option value="">(sem WAN alternativa)</option>'}</select>
       <button class="btn" onclick="contSimulate()">Simular failover (só leitura)</button>
       <button class="btn" onclick="contReconcile(true)">Reconciliar em simulação</button>
@@ -600,9 +600,9 @@ VIEWS.continuity = async (force) => {
     <h4 class="mt">Monitor automático</h4>
     <p class="small muted">Vigia a WAN ativa em segundo plano — o failover não espera alguém estar olhando o painel.</p>
     <div class="toolbar">
-      <div class="field" style="margin:0"><label>Intervalo (s)</label><input id="monInt" type="number" min="5" value="${m.intervalSec}" style="width:90px"></div>
-      <label style="margin:0"><input type="checkbox" id="monAuto" ${m.autoReconcile ? 'checked' : ''}> reconciliar sozinho ao detectar troca</label>
-      <label style="margin:0"><input type="checkbox" id="monDry" ${m.dryRun ? 'checked' : ''}> manter em simulação (não grava)</label>
+      <div class="field" style="margin:0"><label for="monInt">Intervalo (s)</label><input id="monInt" type="number" min="5" value="${m.intervalSec}" style="width:90px"></div>
+      <label for="monAuto" style="margin:0"><input type="checkbox" id="monAuto" ${m.autoReconcile ? 'checked' : ''}> reconciliar sozinho ao detectar troca</label>
+      <label for="monDry" style="margin:0"><input type="checkbox" id="monDry" ${m.dryRun ? 'checked' : ''}> manter em simulação (não grava)</label>
       ${m.enabled ? `<button class="btn danger" onclick="contMonitor(false)">Parar monitor</button>` : `<button class="btn primary" onclick="contMonitor(true)">Iniciar monitor</button>`}
       <button class="btn" onclick="contPoll()">Verificar agora</button>
       <span class="small">${m.enabled ? tag('ligado', 'ok') : tag('desligado', 'info')} ${m.error ? tag('erro', 'alto') : ''}</span>
@@ -698,12 +698,12 @@ VIEWS.settings = async () => {
   view.innerHTML = `
   <div class="grid g2">
     <div class="card"><h3>Conexão com o UDM Pro</h3>
-      <div class="field"><label>Modo de conexão</label><select id="cfMode"><option value="local" ${c.mode === 'local' ? 'selected' : ''}>Local — acesso direto ao IP do UDM Pro (recomendado: habilita logs e ameaças)</option><option value="cloud" ${c.mode === 'cloud' ? 'selected' : ''}>Nuvem — via api.ui.com (Site Manager Cloud Connector)</option></select></div>
-      <div class="field" id="fHost"><label>Endereço do UDM Pro (IP ou hostname, ex.: 192.168.1.1)</label><input id="cfHost" value="${esc(c.host)}"></div>
-      <div class="field" id="fConsole"><label>ID do console (da URL do unifi.ui.com, ex.: 74ACB9D9…:728716942)</label><input id="cfConsole" value="${esc(c.console_id)}"></div>
-      <div class="field"><label>Chave API ${c.configured ? `(atual: <span class="mono">${esc(c.api_key)}</span> — deixe em branco para manter)` : ''}</label><input id="cfKey" type="password" placeholder="cole a chave API"></div>
-      <div class="field"><label>Site (opcional — UUID ou nome interno; vazio = primeiro site)</label><input id="cfSite" value="${esc(c.site_id)}"></div>
-      <div class="field"><label><input type="checkbox" id="cfSsl" ${c.verify_ssl ? 'checked' : ''}> Verificar certificado SSL (desmarque para o certificado autoassinado padrão do UDM)</label></div>
+      <div class="field"><label for="cfMode">Modo de conexão</label><select id="cfMode"><option value="local" ${c.mode === 'local' ? 'selected' : ''}>Local — acesso direto ao IP do UDM Pro (recomendado: habilita logs e ameaças)</option><option value="cloud" ${c.mode === 'cloud' ? 'selected' : ''}>Nuvem — via api.ui.com (Site Manager Cloud Connector)</option></select></div>
+      <div class="field" id="fHost"><label for="cfHost">Endereço do UDM Pro (IP ou hostname, ex.: 192.168.1.1)</label><input id="cfHost" value="${esc(c.host)}"></div>
+      <div class="field" id="fConsole"><label for="cfConsole">ID do console (da URL do unifi.ui.com, ex.: 74ACB9D9…:728716942)</label><input id="cfConsole" value="${esc(c.console_id)}"></div>
+      <div class="field"><label for="cfKey">Chave API ${c.configured ? `(atual: <span class="mono">${esc(c.api_key)}</span> — deixe em branco para manter)` : ''}</label><input id="cfKey" type="password" placeholder="cole a chave API"></div>
+      <div class="field"><label for="cfSite">Site (opcional — UUID ou nome interno; vazio = primeiro site)</label><input id="cfSite" value="${esc(c.site_id)}"></div>
+      <div class="field"><label for="cfSsl"><input type="checkbox" id="cfSsl" ${c.verify_ssl ? 'checked' : ''}> Verificar certificado SSL (desmarque para o certificado autoassinado padrão do UDM)</label></div>
       <button class="btn" id="cfTest">Testar conexão</button> <button class="btn primary" id="cfSave">Salvar</button>
       <div id="cfResult" class="mt"></div>
       <p class="small muted mt">A chave é gravada apenas neste servidor em <span class="mono">${esc(c.config_path)}</span> (permissão 600) e nunca é enviada ao navegador.</p>
