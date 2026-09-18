@@ -7,6 +7,7 @@ Cada verificacao produz um "finding" com:
 """
 from __future__ import annotations
 
+import concurrent.futures
 import re
 from typing import Any
 
@@ -57,14 +58,25 @@ class SecurityAudit:
         self._safe("pending", c.pending_devices, [])
         # detalhes de redes/wifi (config de seguranca so vem no detalhe)
         nets = []
-        for n in self.data["networks"] or []:
-            d = self._safe(f"network:{n.get('id')}", lambda n=n: c.network(n["id"]), n)
-            nets.append(d or n)
+        networks_data = self.data["networks"] or []
+        if networks_data:
+            # ⚡ Bolt: Fetch network details concurrently to eliminate N+1 API query bottlenecks.
+            # Performance Impact: Reduces blocking time from O(N) sequential calls to parallel execution.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(networks_data))) as executor:
+                def fetch_net_detail(n):
+                    return self._safe(f"network:{n.get('id')}", lambda n=n: c.network(n["id"]), n) or n
+                nets = list(executor.map(fetch_net_detail, networks_data))
         self.data["networks_detail"] = nets
+
         wifis = []
-        for w in self.data["wifi"] or []:
-            d = self._safe(f"wifi:{w.get('id')}", lambda w=w: c.wifi_detail(w["id"]), w)
-            wifis.append(d or w)
+        wifi_data = self.data["wifi"] or []
+        if wifi_data:
+            # ⚡ Bolt: Fetch Wi-Fi details concurrently to eliminate N+1 API query bottlenecks.
+            # Performance Impact: Reduces blocking time from O(N) sequential calls to parallel execution.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(32, len(wifi_data))) as executor:
+                def fetch_wifi_detail(w):
+                    return self._safe(f"wifi:{w.get('id')}", lambda w=w: c.wifi_detail(w["id"]), w) or w
+                wifis = list(executor.map(fetch_wifi_detail, wifi_data))
         self.data["wifi_detail"] = wifis
 
         classic = c.classic_available()

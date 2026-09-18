@@ -1,3 +1,6 @@
 ## 2024-05-24 - N+1 Bottleneck in API Integration
 **Learning:** The FastAPI backend fetching data from the UniFi API (`unifi_client.py`) previously suffered from N+1 sequential request bottlenecks when grabbing detailed statistics for devices, networks, and Wi-Fi endpoints in `main.py`. This blocks the thread synchronously for `O(N * latency)` time.
 **Action:** When querying details from an external API for a list of items, always consider utilizing `concurrent.futures.ThreadPoolExecutor` to fetch these items concurrently. `httpx` is thread-safe for making concurrent API calls. Remember to preserve the original ordering and handle API exceptions robustly inside the executor's worker function.
+## 2024-06-25 - N+1 Bottleneck in API Integration SecurityAudit.run
+**Learning:** The FastAPI backend fetching data from the UniFi API (`unifi_client.py`) previously suffered from N+1 sequential request bottlenecks when grabbing detailed configurations for networks, and Wi-Fi endpoints in `app/audit.py`. This blocks the thread synchronously for `O(N * latency)` time.
+**Action:** When querying details from an external API for a list of items, always consider utilizing `concurrent.futures.ThreadPoolExecutor` to fetch these items concurrently. Remember to preserve the original ordering and handle API exceptions robustly inside the executor's worker function.
