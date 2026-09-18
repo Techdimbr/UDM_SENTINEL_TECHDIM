@@ -698,12 +698,12 @@ VIEWS.settings = async () => {
   view.innerHTML = `
   <div class="grid g2">
     <div class="card"><h3>Conexão com o UDM Pro</h3>
-      <div class="field"><label>Modo de conexão</label><select id="cfMode"><option value="local" ${c.mode === 'local' ? 'selected' : ''}>Local — acesso direto ao IP do UDM Pro (recomendado: habilita logs e ameaças)</option><option value="cloud" ${c.mode === 'cloud' ? 'selected' : ''}>Nuvem — via api.ui.com (Site Manager Cloud Connector)</option></select></div>
-      <div class="field" id="fHost"><label>Endereço do UDM Pro (IP ou hostname, ex.: 192.168.1.1)</label><input id="cfHost" value="${esc(c.host)}"></div>
-      <div class="field" id="fConsole"><label>ID do console (da URL do unifi.ui.com, ex.: 74ACB9D9…:728716942)</label><input id="cfConsole" value="${esc(c.console_id)}"></div>
-      <div class="field"><label>Chave API ${c.configured ? `(atual: <span class="mono">${esc(c.api_key)}</span> — deixe em branco para manter)` : ''}</label><input id="cfKey" type="password" placeholder="cole a chave API"></div>
-      <div class="field"><label>Site (opcional — UUID ou nome interno; vazio = primeiro site)</label><input id="cfSite" value="${esc(c.site_id)}"></div>
-      <div class="field"><label><input type="checkbox" id="cfSsl" ${c.verify_ssl ? 'checked' : ''}> Verificar certificado SSL (desmarque para o certificado autoassinado padrão do UDM)</label></div>
+      <div class="field"><label for="cfMode">Modo de conexão</label><select id="cfMode"><option value="local" ${c.mode === 'local' ? 'selected' : ''}>Local — acesso direto ao IP do UDM Pro (recomendado: habilita logs e ameaças)</option><option value="cloud" ${c.mode === 'cloud' ? 'selected' : ''}>Nuvem — via api.ui.com (Site Manager Cloud Connector)</option></select></div>
+      <div class="field" id="fHost"><label for="cfHost">Endereço do UDM Pro (IP ou hostname, ex.: 192.168.1.1)</label><input id="cfHost" value="${esc(c.host)}"></div>
+      <div class="field" id="fConsole"><label for="cfConsole">ID do console (da URL do unifi.ui.com, ex.: 74ACB9D9…:728716942)</label><input id="cfConsole" value="${esc(c.console_id)}"></div>
+      <div class="field"><label for="cfKey">Chave API ${c.configured ? `(atual: <span class="mono">${esc(c.api_key)}</span> — deixe em branco para manter)` : ''}</label><input id="cfKey" type="password" placeholder="cole a chave API"></div>
+      <div class="field"><label for="cfSite">Site (opcional — UUID ou nome interno; vazio = primeiro site)</label><input id="cfSite" value="${esc(c.site_id)}"></div>
+      <div class="field"><label for="cfSsl"><input type="checkbox" id="cfSsl" ${c.verify_ssl ? 'checked' : ''}> Verificar certificado SSL (desmarque para o certificado autoassinado padrão do UDM)</label></div>
       <button class="btn" id="cfTest">Testar conexão</button> <button class="btn primary" id="cfSave">Salvar</button>
       <div id="cfResult" class="mt"></div>
       <p class="small muted mt">A chave é gravada apenas neste servidor em <span class="mono">${esc(c.config_path)}</span> (permissão 600) e nunca é enviada ao navegador.</p>
