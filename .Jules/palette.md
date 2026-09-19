@@ -1,3 +1,3 @@
-## 2024-05-19 - Keyboard Navigation for Custom Sidebar Links
-**Learning:** In SPAs using plain `<a>` tags with `data-*` attributes for routing, missing `href` attributes make navigation completely inaccessible via keyboard because they are omitted from the document's tab order by browsers.
-**Action:** Always ensure navigation elements are semantic. Add `href="#hash"` to anchor tags to make them focusable, and combine with `e.preventDefault()` in JS event listeners to handle routing while preserving accessibility and focus management. Add `:focus-visible` styles to complete the experience.
+## 2024-09-18 - [Vanilla JS Templates A11y]
+**Learning:** In vanilla JavaScript templates with string interpolation (like the ones used in `app.js` for views), it's easy to miss proper `<label for="id">` mappings and `aria-label` attributes on dynamically injected components. Even with simple designs, missing these explicit mappings completely breaks screen reader functionality and focus states.
+**Action:** When working on SPAs without frameworks, always double-check that every `<label>` has a explicitly declared `for` attribute and that all icon-only interactive elements (like `✕` buttons) receive `aria-label` attributes in the HTML template string.
